@@ -13,4 +13,16 @@ contextBridge.exposeInMainWorld('api', {
     desarquivar: (id) => ipcRenderer.invoke('pacientes:desarquivar', id),
     excluir: (id) => ipcRenderer.invoke('pacientes:excluir', id),
   },
+  sessoes: {
+    criar: (pacienteId, dados) => ipcRenderer.invoke('sessoes:criar', pacienteId, dados),
+    listar: (pacienteId) => ipcRenderer.invoke('sessoes:listar', pacienteId),
+    atualizar: (id, dados) => ipcRenderer.invoke('sessoes:atualizar', id, dados),
+    excluir: (id) => ipcRenderer.invoke('sessoes:excluir', id),
+  },
+  valores: {
+    adicionar: (pacienteId, valor, aPartirDe) => ipcRenderer.invoke('valores:adicionar', pacienteId, valor, aPartirDe),
+    listar: (pacienteId) => ipcRenderer.invoke('valores:listar', pacienteId),
+    atual: (pacienteId) => ipcRenderer.invoke('valores:atual', pacienteId),
+    naData: (pacienteId, data) => ipcRenderer.invoke('valores:naData', pacienteId, data),
+  },
 });

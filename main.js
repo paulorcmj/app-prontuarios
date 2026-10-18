@@ -28,6 +28,15 @@ function registrarIpc() {
   ipcMain.handle('pacientes:arquivar', (_e, id) => banco.arquivarPaciente(id));
   ipcMain.handle('pacientes:desarquivar', (_e, id) => banco.desarquivarPaciente(id));
   ipcMain.handle('pacientes:excluir', (_e, id) => banco.excluirPaciente(id));
+  ipcMain.handle('sessoes:criar', (_e, pacienteId, dados) => banco.criarSessao(pacienteId, dados));
+  ipcMain.handle('sessoes:listar', (_e, pacienteId) => banco.listarSessoes(pacienteId));
+  ipcMain.handle('sessoes:atualizar', (_e, id, dados) => banco.atualizarSessao(id, dados));
+  ipcMain.handle('sessoes:excluir', (_e, id) => banco.excluirSessao(id));
+
+  ipcMain.handle('valores:adicionar', (_e, pacienteId, valor, aPartirDe) => banco.adicionarValor(pacienteId, valor, aPartirDe));
+  ipcMain.handle('valores:listar', (_e, pacienteId) => banco.listarValores(pacienteId));
+  ipcMain.handle('valores:atual', (_e, pacienteId) => banco.valorAtual(pacienteId));
+  ipcMain.handle('valores:naData', (_e, pacienteId, data) => banco.valorNaData(pacienteId, data));
 }
 
 app.whenReady().then(() => {

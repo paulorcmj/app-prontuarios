@@ -150,6 +150,78 @@ function excluirPaciente(id) {
   db.prepare('DELETE FROM pacientes WHERE id = ?').run(id);
 }
 
+// A ordenação cronológica depende deste formato de texto.
+function validarDataHora(dataHora) {
+  if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(dataHora || '')) {
+    throw new Error('A data e hora da sessão devem estar no formato AAAA-MM-DD HH:MM');
+  }
+}
+
+function criarSessao(pacienteId, dados) {
+  validarDataHora(dados.data_hora);
+  const r = db
+    .prepare('INSERT INTO sessoes (paciente_id, data_hora, relato, anotacoes) VALUES (?, ?, ?, ?)')
+    .run(pacienteId, dados.data_hora, dados.relato ?? null, dados.anotacoes ?? null);
+  return Number(r.lastInsertRowid);
+}
+
+// Ordem cronológica; o id desempata sessões no mesmo horário.
+function listarSessoes(pacienteId) {
+  return db
+    .prepare('SELECT * FROM sessoes WHERE paciente_id = ? ORDER BY data_hora, id')
+    .all(pacienteId);
+}
+
+// Recebe a sessão inteira: o campo que não vier fica vazio.
+function atualizarSessao(id, dados) {
+  validarDataHora(dados.data_hora);
+  db.prepare('UPDATE sessoes SET data_hora = ?, relato = ?, anotacoes = ? WHERE id = ?')
+    .run(dados.data_hora, dados.relato ?? null, dados.anotacoes ?? null, id);
+}
+
+function excluirSessao(id) {
+  db.prepare('DELETE FROM sessoes WHERE id = ?').run(id);
+}
+
+// Valor em centavos (R$ 150,00 = 15000). Cada reajuste é uma linha nova.
+function adicionarValor(pacienteId, valor, aPartirDe) {
+  if (!Number.isInteger(valor) || valor < 0) {
+    throw new Error('O valor deve ser um número inteiro de centavos');
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(aPartirDe || '')) {
+    throw new Error('A data do reajuste deve estar no formato AAAA-MM-DD');
+  }
+  const r = db
+    .prepare('INSERT INTO valores (paciente_id, valor, a_partir_de) VALUES (?, ?, ?)')
+    .run(pacienteId, valor, aPartirDe);
+  return Number(r.lastInsertRowid);
+}
+
+function listarValores(pacienteId) {
+  return db
+    .prepare('SELECT * FROM valores WHERE paciente_id = ? ORDER BY a_partir_de DESC, id DESC')
+    .all(pacienteId);
+}
+
+// Valor atual: a linha mais recente do histórico.
+function valorAtual(pacienteId) {
+  return db
+    .prepare('SELECT * FROM valores WHERE paciente_id = ? ORDER BY a_partir_de DESC, id DESC LIMIT 1')
+    .get(pacienteId) ?? null;
+}
+
+// Valor numa data: a linha mais recente com a_partir_de <= data.
+// Aceita AAAA-MM-DD ou AAAA-MM-DD HH:MM; só a parte da data entra na comparação.
+function valorNaData(pacienteId, data) {
+  return db
+    .prepare(
+      `SELECT * FROM valores
+       WHERE paciente_id = ? AND a_partir_de <= ?
+       ORDER BY a_partir_de DESC, id DESC LIMIT 1`
+    )
+    .get(pacienteId, data.slice(0, 10)) ?? null;
+}
+
 module.exports = {
   iniciar,
   criarPaciente,
@@ -159,4 +231,12 @@ module.exports = {
   arquivarPaciente,
   desarquivarPaciente,
   excluirPaciente,
+  criarSessao,
+  listarSessoes,
+  atualizarSessao,
+  excluirSessao,
+  adicionarValor,
+  listarValores,
+  valorAtual,
+  valorNaData,
 };
