@@ -1,0 +1,132 @@
+<script setup>
+import { ref, onMounted } from 'vue';
+import Confirmacao from './Confirmacao.vue';
+
+const props = defineProps({ pacienteId: [Number, String] });
+const emit = defineEmits(['salvo', 'mudou-situacao']);
+
+const CAMPOS = [
+  'nome_completo', 'cpf', 'data_nascimento', 'cidade', 'queixa_inicial',
+  'data_inicio', 'celular', 'contato_emergencia_nome',
+  'contato_emergencia_telefone', 'adendos', 'anotacoes_caso',
+];
+
+// O pai recria este componente (:key) ao trocar de paciente, então 'novo' vale só no setup.
+const novo = props.pacienteId === 'novo';
+const ficha = ref(Object.fromEntries(CAMPOS.map((c) => [c, ''])));
+const situacao = ref('ativo');
+const erro = ref('');
+const confirmandoExclusao = ref(false);
+
+onMounted(async () => {
+  if (novo) return;
+  const p = await window.api.pacientes.obter(props.pacienteId);
+  for (const c of CAMPOS) ficha.value[c] = p[c] ?? '';
+  situacao.value = p.situacao;
+});
+
+// Tira o prefixo "Error invoking remote method" que o Electron põe nos erros do IPC.
+function mensagem(e) {
+  return e.message.replace(/^Error invoking remote method '[^']*': (Error: )?/, '');
+}
+
+async function executar(acao) {
+  erro.value = '';
+  try {
+    await acao();
+  } catch (e) {
+    erro.value = mensagem(e);
+  }
+}
+
+function salvar() {
+  executar(async () => {
+    // A cópia ({ ...ficha }) tira o proxy do Vue, que o IPC não consegue enviar.
+    const dados = { ...ficha.value };
+    const id = novo
+      ? await window.api.pacientes.criar(dados)
+      : (await window.api.pacientes.atualizar(props.pacienteId, dados), props.pacienteId);
+    emit('salvo', id);
+  });
+}
+
+function arquivar() {
+  executar(async () => {
+    await window.api.pacientes.arquivar(props.pacienteId);
+    emit('mudou-situacao');
+  });
+}
+
+function desarquivar() {
+  executar(async () => {
+    await window.api.pacientes.desarquivar(props.pacienteId);
+    emit('mudou-situacao');
+  });
+}
+
+function excluir() {
+  confirmandoExclusao.value = false;
+  executar(async () => {
+    await window.api.pacientes.excluir(props.pacienteId);
+    emit('mudou-situacao');
+  });
+}
+</script>
+
+<template>
+  <form class="ficha" @submit.prevent="salvar">
+    <h2>{{ novo ? 'Novo paciente' : 'Ficha do paciente' }}</h2>
+
+    <label class="largo">Nome completo
+      <input v-model="ficha.nome_completo" required />
+    </label>
+    <label>CPF
+      <input v-model="ficha.cpf" />
+    </label>
+    <label>Data de nascimento
+      <input v-model="ficha.data_nascimento" type="date" />
+    </label>
+    <label>Cidade
+      <input v-model="ficha.cidade" />
+    </label>
+    <label>Início do atendimento
+      <input v-model="ficha.data_inicio" type="date" />
+    </label>
+    <label>Celular
+      <input v-model="ficha.celular" />
+    </label>
+    <label>Contato de emergência (nome)
+      <input v-model="ficha.contato_emergencia_nome" />
+    </label>
+    <label>Contato de emergência (telefone)
+      <input v-model="ficha.contato_emergencia_telefone" />
+    </label>
+    <label class="largo">Queixa inicial
+      <textarea v-model="ficha.queixa_inicial" rows="3" />
+    </label>
+    <label class="largo">Adendos
+      <textarea v-model="ficha.adendos" rows="3" />
+    </label>
+    <label class="largo">Anotações do caso
+      <textarea v-model="ficha.anotacoes_caso" rows="4" />
+    </label>
+
+    <p v-if="erro" class="erro">{{ erro }}</p>
+
+    <div class="acoes">
+      <button type="submit" class="principal">Salvar</button>
+      <template v-if="!novo">
+        <button v-if="situacao === 'ativo'" type="button" @click="arquivar">Arquivar</button>
+        <button v-else type="button" @click="desarquivar">Desarquivar</button>
+        <button type="button" class="perigo" @click="confirmandoExclusao = true">Excluir</button>
+      </template>
+    </div>
+
+    <Confirmacao
+      v-if="confirmandoExclusao"
+      texto="Excluir este paciente? As sessões e os valores dele também serão excluídos."
+      @cancelar="confirmandoExclusao = false"
+      @confirmar="excluir"
+    />
+  </form>
+</template>
