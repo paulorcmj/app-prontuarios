@@ -1,9 +1,13 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import Confirmacao from './Confirmacao.vue';
+import Valores from './Valores.vue';
+import Sessoes from './Sessoes.vue';
+import { reaisParaCentavos, hoje, mensagemDeErro } from '../utilitarios.js';
 
 const props = defineProps({ pacienteId: [Number, String] });
 const emit = defineEmits(['salvo', 'mudou-situacao']);
+const valorInicial = ref('');
 
 const CAMPOS = [
   'nome_completo', 'cpf', 'data_nascimento', 'cidade', 'queixa_inicial',
@@ -25,17 +29,12 @@ onMounted(async () => {
   situacao.value = p.situacao;
 });
 
-// Tira o prefixo "Error invoking remote method" que o Electron põe nos erros do IPC.
-function mensagem(e) {
-  return e.message.replace(/^Error invoking remote method '[^']*': (Error: )?/, '');
-}
-
 async function executar(acao) {
   erro.value = '';
   try {
     await acao();
   } catch (e) {
-    erro.value = mensagem(e);
+    erro.value = mensagemDeErro(e);
   }
 }
 
@@ -43,9 +42,26 @@ function salvar() {
   executar(async () => {
     // A cópia ({ ...ficha }) tira o proxy do Vue, que o IPC não consegue enviar.
     const dados = { ...ficha.value };
-    const id = novo
-      ? await window.api.pacientes.criar(dados)
-      : (await window.api.pacientes.atualizar(props.pacienteId, dados), props.pacienteId);
+
+    if (!novo) {
+      await window.api.pacientes.atualizar(props.pacienteId, dados);
+      emit('salvo', props.pacienteId);
+      return;
+    }
+
+    // O valor é conferido antes de criar o paciente, para não ficar um cadastro pela metade.
+    let centavos = null;
+    if (valorInicial.value.trim()) {
+      centavos = reaisParaCentavos(valorInicial.value);
+      if (centavos === null) throw new Error('Digite o valor em reais, por exemplo 150,00');
+    }
+
+    const id = await window.api.pacientes.criar(dados);
+    if (centavos !== null) {
+      // Vale desde o início do atendimento (ou desde hoje, se a data estiver vazia).
+      // Se falhar, o paciente já existe e o valor pode ser registrado depois, no bloco da ficha.
+      await window.api.valores.adicionar(id, centavos, ficha.value.data_inicio || hoje()).catch(() => {});
+    }
     emit('salvo', id);
   });
 }
@@ -101,6 +117,9 @@ function excluir() {
     <label>Contato de emergência (telefone)
       <input v-model="ficha.contato_emergencia_telefone" />
     </label>
+    <label v-if="novo">Valor da sessão (R$)
+      <input v-model="valorInicial" inputmode="decimal" placeholder="150,00" />
+    </label>
     <label class="largo">Queixa inicial
       <textarea v-model="ficha.queixa_inicial" rows="3" />
     </label>
@@ -129,4 +148,8 @@ function excluir() {
       @confirmar="excluir"
     />
   </form>
+  <template v-if="!novo">
+    <Valores :paciente-id="pacienteId" />
+    <Sessoes :paciente-id="pacienteId" />
+  </template>
 </template>

@@ -32,3 +32,21 @@ input, textarea { width: 100%; padding: 6px 8px; border: 1px solid #c4cad3; bord
 .fundo { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.35); }
 .janela { width: 360px; padding: 20px; border-radius: 8px; background: #fff; }
 .janela .acoes { justify-content: flex-end; }
+
+.bloco { max-width: 760px; margin-top: 28px; padding-top: 16px; border-top: 1px solid #dde1e7; }
+.bloco h3 { margin: 0 0 12px; }
+.bloco label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #3e4856; }
+.form-sessao { display: flex; flex-direction: column; gap: 12px; }
+.form-valor { display: flex; align-items: flex-end; gap: 12px; }
+.form-valor label { flex: 1; }
+.linha-atual { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
+.linha-atual p { margin: 0; }
+.menu-historico { position: relative; }
+.historico { position: absolute; top: calc(100% + 4px); left: 0; z-index: 10; width: 260px; max-height: 220px; margin: 0; padding: 4px 12px; overflow-y: auto; list-style: none; border: 1px solid #c4cad3; border-radius: 6px; background: #fff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); color: #3e4856; }
+.historico li { padding: 4px 0; }
+.sessoes { display: flex; flex-direction: column; gap: 12px; margin: 20px 0 0; padding: 0; list-style: none; }
+.sessoes li { padding: 12px; border: 1px solid #dde1e7; border-radius: 6px; background: #fff; }
+.sessoes li.editando { border-color: #2f5d8a; }
+.sessoes header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.texto { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.anotacoes { color: #5b6573; }
