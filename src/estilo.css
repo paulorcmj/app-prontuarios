@@ -50,3 +50,5 @@ input, textarea { width: 100%; padding: 6px 8px; border: 1px solid #c4cad3; bord
 .sessoes header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .texto { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .anotacoes { color: #5b6573; }
+.ficha fieldset { display: contents; min-width: 0; margin: 0; padding: 0; border: 0; }
+input:disabled, textarea:disabled { background: #f0f2f5; color: #1f2933; }

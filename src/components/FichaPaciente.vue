@@ -21,12 +21,16 @@ const ficha = ref(Object.fromEntries(CAMPOS.map((c) => [c, ''])));
 const situacao = ref('ativo');
 const erro = ref('');
 const confirmandoExclusao = ref(false);
+const editando = ref(novo);
 
-onMounted(async () => {
-  if (novo) return;
+async function carregarFicha() {
   const p = await window.api.pacientes.obter(props.pacienteId);
   for (const c of CAMPOS) ficha.value[c] = p[c] ?? '';
   situacao.value = p.situacao;
+}
+
+onMounted(() => {
+  if (!novo) executar(carregarFicha);
 });
 
 async function executar(acao) {
@@ -45,6 +49,7 @@ function salvar() {
 
     if (!novo) {
       await window.api.pacientes.atualizar(props.pacienteId, dados);
+      editando.value = false;
       emit('salvo', props.pacienteId);
       return;
     }
@@ -63,6 +68,14 @@ function salvar() {
       await window.api.valores.adicionar(id, centavos, ficha.value.data_inicio || hoje()).catch(() => {});
     }
     emit('salvo', id);
+  });
+}
+
+// Descarta o que foi digitado e volta ao que está salvo no banco.
+function cancelarEdicao() {
+  executar(async () => {
+    await carregarFicha();
+    editando.value = false;
   });
 }
 
@@ -93,48 +106,56 @@ function excluir() {
   <form class="ficha" @submit.prevent="salvar">
     <h2>{{ novo ? 'Novo paciente' : 'Ficha do paciente' }}</h2>
 
-    <label class="largo">Nome completo
-      <input v-model="ficha.nome_completo" required />
-    </label>
-    <label>CPF
-      <input v-model="ficha.cpf" />
-    </label>
-    <label>Data de nascimento
-      <input v-model="ficha.data_nascimento" type="date" />
-    </label>
-    <label>Cidade
-      <input v-model="ficha.cidade" />
-    </label>
-    <label>Início do atendimento
-      <input v-model="ficha.data_inicio" type="date" />
-    </label>
-    <label>Celular
-      <input v-model="ficha.celular" />
-    </label>
-    <label>Contato de emergência (nome)
-      <input v-model="ficha.contato_emergencia_nome" />
-    </label>
-    <label>Contato de emergência (telefone)
-      <input v-model="ficha.contato_emergencia_telefone" />
-    </label>
-    <label v-if="novo">Valor da sessão (R$)
-      <input v-model="valorInicial" inputmode="decimal" placeholder="150,00" />
-    </label>
-    <label class="largo">Queixa inicial
-      <textarea v-model="ficha.queixa_inicial" rows="3" />
-    </label>
-    <label class="largo">Adendos
-      <textarea v-model="ficha.adendos" rows="3" />
-    </label>
-    <label class="largo">Anotações do caso
-      <textarea v-model="ficha.anotacoes_caso" rows="4" />
-    </label>
+    <fieldset :disabled="!editando">
+      <label class="largo">Nome completo
+        <input v-model="ficha.nome_completo" required />
+      </label>
+      <label>CPF
+        <input v-model="ficha.cpf" />
+      </label>
+      <label>Data de nascimento
+        <input v-model="ficha.data_nascimento" type="date" />
+      </label>
+      <label>Cidade
+        <input v-model="ficha.cidade" />
+      </label>
+      <label>Início do atendimento
+        <input v-model="ficha.data_inicio" type="date" />
+      </label>
+      <label>Celular
+        <input v-model="ficha.celular" />
+      </label>
+      <label>Contato de emergência (nome)
+        <input v-model="ficha.contato_emergencia_nome" />
+      </label>
+      <label>Contato de emergência (telefone)
+        <input v-model="ficha.contato_emergencia_telefone" />
+      </label>
+      <label v-if="novo">Valor da sessão (R$)
+        <input v-model="valorInicial" inputmode="decimal" placeholder="150,00" />
+      </label>
+      <label class="largo">Queixa inicial
+        <textarea v-model="ficha.queixa_inicial" rows="3" />
+      </label>
+      <label class="largo">Adendos
+        <textarea v-model="ficha.adendos" rows="3" />
+      </label>
+      <label class="largo">Anotações do caso
+        <textarea v-model="ficha.anotacoes_caso" rows="4" />
+      </label>
+    </fieldset>
 
     <p v-if="erro" class="erro">{{ erro }}</p>
 
     <div class="acoes">
-      <button type="submit" class="principal">Salvar</button>
-      <template v-if="!novo">
+      <!-- As chaves impedem o Vue de reaproveitar o mesmo botão: o clique em
+           "Editar" viraria um envio do formulário ao trocar o tipo do botão. -->
+      <template v-if="editando" key="edicao">
+        <button type="submit" class="principal">Salvar</button>
+        <button v-if="!novo" type="button" @click="cancelarEdicao">Cancelar</button>
+      </template>
+      <template v-else key="leitura">
+        <button type="button" class="principal" @click="editando = true">Editar</button>
         <button v-if="situacao === 'ativo'" type="button" @click="arquivar">Arquivar</button>
         <button v-else type="button" @click="desarquivar">Desarquivar</button>
         <button type="button" class="perigo" @click="confirmandoExclusao = true">Excluir</button>
