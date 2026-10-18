@@ -16,7 +16,12 @@ function criarJanela() {
       nodeIntegration: false,
     },
   });
-  janela.loadFile('index.html');
+  // Em desenvolvimento a tela vem do servidor do Vite; no app pronto, da pasta gerada.
+  if (process.env.VITE_DEV_SERVER_URL) {
+    janela.loadURL(process.env.VITE_DEV_SERVER_URL);
+  } else {
+    janela.loadFile(path.join(__dirname, 'dist', 'index.html'));
+  }
 }
 
 // Cada canal liga uma chamada da tela a uma função do banco.js.
