@@ -1,5 +1,9 @@
 <script setup>
-defineProps({ texto: String });
+defineProps({
+  texto: String,
+  rotuloCancelar: { type: String, default: 'Cancelar' },
+  rotuloConfirmar: { type: String, default: 'Excluir' },
+});
 defineEmits(['cancelar', 'confirmar']);
 </script>
 
@@ -9,8 +13,8 @@ defineEmits(['cancelar', 'confirmar']);
       <p>{{ texto }}</p>
       <div class="acoes">
         <!-- type="button" evita que o clique envie o formulário em que a janela está -->
-        <button type="button" @click="$emit('cancelar')">Cancelar</button>
-        <button type="button" class="perigo" @click="$emit('confirmar')">Excluir</button>
+        <button type="button" @click="$emit('cancelar')">{{ rotuloCancelar }}</button>
+        <button type="button" class="perigo" @click="$emit('confirmar')">{{ rotuloConfirmar }}</button>
       </div>
     </div>
   </div>

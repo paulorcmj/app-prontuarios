@@ -1,7 +1,7 @@
 // Processo principal do Electron: abre o banco, cria a janela
 // e responde aos pedidos da tela.
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const banco = require('./banco');
 
@@ -15,6 +15,21 @@ function criarJanela() {
       contextIsolation: true,
       nodeIntegration: false,
     },
+  });
+  // A tela cancela o fechamento quando há alterações sem salvar (beforeunload);
+  // aqui o usuário escolhe entre sair mesmo assim ou voltar a editar.
+  janela.webContents.on('will-prevent-unload', (evento) => {
+    const escolha = dialog.showMessageBoxSync(janela, {
+      type: 'warning',
+      buttons: ['Sair sem salvar', 'Continuar editando'],
+      defaultId: 1,
+      cancelId: 1,
+      title: 'Alterações não salvas',
+      message: 'Há alterações que não foram salvas.',
+      detail: 'Se sair agora, o que foi digitado será perdido.',
+    });
+    // preventDefault() ignora o cancelamento da tela e deixa a janela fechar.
+    if (escolha === 0) evento.preventDefault();
   });
   // Em desenvolvimento a tela vem do servidor do Vite; no app pronto, da pasta gerada.
   if (process.env.VITE_DEV_SERVER_URL) {

@@ -1,12 +1,12 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import Confirmacao from './Confirmacao.vue';
 import Valores from './Valores.vue';
 import Sessoes from './Sessoes.vue';
 import { reaisParaCentavos, hoje, mensagemDeErro } from '../utilitarios.js';
 
 const props = defineProps({ pacienteId: [Number, String] });
-const emit = defineEmits(['salvo', 'mudou-situacao']);
+const emit = defineEmits(['salvo', 'mudou-situacao', 'alteracao-pendente']);
 const valorInicial = ref('');
 
 const CAMPOS = [
@@ -23,10 +23,19 @@ const erro = ref('');
 const confirmandoExclusao = ref(false);
 const editando = ref(novo);
 
+// Retrato dos campos como estão salvos, para saber se há alteração pendente.
+const retrato = () => JSON.stringify([ficha.value, valorInicial.value]);
+const retratoSalvo = ref(retrato());
+const alterado = computed(() => editando.value && retrato() !== retratoSalvo.value);
+
+// O App.vue usa isso para proteger a saída da ficha.
+watch(alterado, (pendente) => emit('alteracao-pendente', pendente));
+
 async function carregarFicha() {
   const p = await window.api.pacientes.obter(props.pacienteId);
   for (const c of CAMPOS) ficha.value[c] = p[c] ?? '';
   situacao.value = p.situacao;
+  retratoSalvo.value = retrato();
 }
 
 onMounted(() => {
@@ -49,6 +58,7 @@ function salvar() {
 
     if (!novo) {
       await window.api.pacientes.atualizar(props.pacienteId, dados);
+      retratoSalvo.value = retrato();
       editando.value = false;
       emit('salvo', props.pacienteId);
       return;
