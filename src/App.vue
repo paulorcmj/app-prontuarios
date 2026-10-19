@@ -106,7 +106,6 @@ async function aoMudarSituacao() {
       />
       <p v-else class="vazio">Selecione um paciente ou cadastre um novo.</p>
     </main>
-    <footer class="rodape">Os dados ficam só neste computador.</footer>
 
     <Confirmacao
       v-if="saidaPendente"

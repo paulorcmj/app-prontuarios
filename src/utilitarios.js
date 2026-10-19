@@ -28,6 +28,11 @@ export function reais(centavos) {
   return (centavos / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// Centavos no formato do campo de valor ("1.500,00"), que reaisParaCentavos aceita de volta.
+export function centavosParaCampo(centavos) {
+  return (centavos / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 // Converte "1.500,00", "150,5" ou "150" em centavos. Devolve null se o formato não for reconhecido.
 // "150.50" é recusado de propósito: o ponto pode ser milhar ou decimal, e adivinhar erra o valor.
 export function reaisParaCentavos(texto) {

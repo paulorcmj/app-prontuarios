@@ -1,6 +1,8 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch, nextTick, onMounted } from 'vue';
 import Confirmacao from './Confirmacao.vue';
+import Colapsavel from './Colapsavel.vue';
+import FormSessao from './FormSessao.vue';
 import { dataHoraBR, agoraLocal, mensagemDeErro } from '../utilitarios.js';
 
 const props = defineProps({ pacienteId: Number });
@@ -8,31 +10,71 @@ const props = defineProps({ pacienteId: Number });
 const sessoes = ref([]);
 // O banco devolve em ordem cronológica; a tela mostra da mais recente para a mais antiga.
 const sessoesRecentesPrimeiro = computed(() => [...sessoes.value].reverse());
+const busca = ref('');
 const erro = ref('');
 const excluindo = ref(null);
-const formRef = ref(null);
+const novaRef = ref(null);
 
-// Um formulário só serve para sessão nova (id null) e para edição.
+const secaoAberta = ref(true);
+// Toda sessão começa fechada; aqui ficam as que o usuário abriu (id -> true).
+const abertas = ref({});
+
+// Sessão nova: formulário no topo, só aberto pelo botão.
+const novaAberta = ref(false);
+const nova = ref(formularioVazio());
+// Edição: o formulário aparece dentro da própria sessão, no lugar do texto.
+const edicao = ref(null);
+
 function formularioVazio() {
-  return { id: null, data_hora: agoraLocal(), relato: '', anotacoes: '' };
+  return { data_hora: agoraLocal(), titulo: '', relato: '', anotacoes: '' };
 }
-const formulario = ref(formularioVazio());
+
+// O datetime-local entrega "AAAA-MM-DDTHH:MM"; o banco guarda com espaço no lugar do T.
+function paraBanco(f) {
+  return { data_hora: f.data_hora.replace('T', ' '), titulo: f.titulo, relato: f.relato, anotacoes: f.anotacoes };
+}
 
 async function carregar() {
-  sessoes.value = await window.api.sessoes.listar(props.pacienteId);
+  sessoes.value = await window.api.sessoes.listar(props.pacienteId, busca.value);
 }
 
 onMounted(carregar);
+watch(busca, carregar);
 
-async function salvar() {
+// Rola só o necessário para a sessão ficar inteira à vista; se já está, não mexe.
+async function mostrarSessao(id) {
+  await nextTick();
+  document.getElementById(`sessao-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function alternarSessao(id, aberto) {
+  abertas.value[id] = aberto;
+  if (aberto) mostrarSessao(id);
+}
+
+async function abrirNova() {
+  secaoAberta.value = true;
+  // Já há uma sessão nova sendo digitada: não apaga o que foi escrito.
+  if (!novaAberta.value) {
+    nova.value = formularioVazio();
+    novaAberta.value = true;
+  }
+  await nextTick();
+  novaRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function fecharNova() {
+  novaAberta.value = false;
+  nova.value = formularioVazio();
+}
+
+async function salvarNova() {
   erro.value = '';
   try {
-    const { id, data_hora, relato, anotacoes } = formulario.value;
-    // O datetime-local entrega "AAAA-MM-DDTHH:MM"; o banco guarda com espaço no lugar do T.
-    const dados = { data_hora: data_hora.replace('T', ' '), relato, anotacoes };
-    if (id === null) await window.api.sessoes.criar(props.pacienteId, dados);
-    else await window.api.sessoes.atualizar(id, dados);
-    formulario.value = formularioVazio();
+    await window.api.sessoes.criar(props.pacienteId, paraBanco(nova.value));
+    fecharNova();
+    // Limpa a busca para a sessão salva não ficar escondida pelo filtro.
+    busca.value = '';
     await carregar();
   } catch (e) {
     erro.value = mensagemDeErro(e);
@@ -40,17 +82,26 @@ async function salvar() {
 }
 
 function editar(sessao) {
-  formulario.value = {
+  abertas.value[sessao.id] = true;
+  edicao.value = {
     id: sessao.id,
     data_hora: sessao.data_hora.replace(' ', 'T'),
+    titulo: sessao.titulo,
     relato: sessao.relato ?? '',
     anotacoes: sessao.anotacoes ?? '',
   };
-  formRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  mostrarSessao(sessao.id);
 }
 
-function cancelarEdicao() {
-  formulario.value = formularioVazio();
+async function salvarEdicao() {
+  erro.value = '';
+  try {
+    await window.api.sessoes.atualizar(edicao.value.id, paraBanco(edicao.value));
+    edicao.value = null;
+    await carregar();
+  } catch (e) {
+    erro.value = mensagemDeErro(e);
+  }
 }
 
 async function excluir() {
@@ -59,7 +110,7 @@ async function excluir() {
   erro.value = '';
   try {
     await window.api.sessoes.excluir(id);
-    if (formulario.value.id === id) formulario.value = formularioVazio();
+    if (edicao.value?.id === id) edicao.value = null;
     await carregar();
   } catch (e) {
     erro.value = mensagemDeErro(e);
@@ -68,42 +119,57 @@ async function excluir() {
 </script>
 
 <template>
-  <section class="bloco">
-    <h3>Sessões</h3>
+  <Colapsavel v-model:aberto="secaoAberta" class="bloco">
+    <template #titulo>Sessões <span class="contagem">{{ sessoes.length }}</span></template>
+    <template #acoes>
+      <input v-model="busca" type="search" aria-label="Buscar nas sessões" placeholder="Buscar nas sessões" />
+      <button type="button" class="principal" @click="abrirNova">Nova sessão</button>
+    </template>
 
-    <form ref="formRef" class="form-sessao" @submit.prevent="salvar">
-      <label>Data e hora
-        <input v-model="formulario.data_hora" type="datetime-local" required />
-      </label>
-      <label>Relato da sessão
-        <textarea v-model="formulario.relato" rows="4" />
-      </label>
-      <label>Anotações
-        <textarea v-model="formulario.anotacoes" rows="3" />
-      </label>
-      <div class="acoes">
-        <button type="submit" class="principal">
-          {{ formulario.id === null ? 'Adicionar sessão' : 'Salvar alterações' }}
-        </button>
-        <button v-if="formulario.id !== null" type="button" @click="cancelarEdicao">Cancelar edição</button>
-      </div>
-    </form>
+    <div v-if="novaAberta" ref="novaRef">
+      <FormSessao v-model="nova" rotulo-salvar="Adicionar sessão" @salvar="salvarNova" @cancelar="fecharNova" />
+    </div>
     <p v-if="erro" class="erro">{{ erro }}</p>
 
-    <ol class="sessoes">
-      <li v-for="s in sessoesRecentesPrimeiro" :key="s.id" :class="{ editando: s.id === formulario.id }">
-        <header>
-          <strong>{{ dataHoraBR(s.data_hora) }}</strong>
-          <span class="acoes">
-            <button type="button" @click="editar(s)">Editar</button>
-            <button type="button" class="perigo" @click="excluindo = s">Excluir</button>
-          </span>
-        </header>
-        <p v-if="s.relato" class="texto">{{ s.relato }}</p>
-        <p v-if="s.anotacoes" class="texto anotacoes"><em>Anotações:</em> {{ s.anotacoes }}</p>
+    <ol v-if="sessoes.length" class="sessoes">
+      <li v-for="s in sessoesRecentesPrimeiro" :id="`sessao-${s.id}`" :key="s.id">
+        <Colapsavel
+          class="sessao"
+          :class="{ editando: edicao?.id === s.id }"
+          :aberto="!!abertas[s.id]"
+          @update:aberto="alternarSessao(s.id, $event)"
+        >
+          <template #titulo>
+            <span class="sessao-data">{{ dataHoraBR(s.data_hora) }}</span>
+            <span class="sessao-titulo">{{ s.titulo }}</span>
+          </template>
+
+          <FormSessao
+            v-if="edicao?.id === s.id"
+            v-model="edicao"
+            rotulo-salvar="Salvar alterações"
+            @salvar="salvarEdicao"
+            @cancelar="edicao = null"
+          />
+          <div v-else class="sessao-corpo">
+            <div v-if="s.relato">
+              <p class="rotulo">Relato da sessão</p>
+              <p class="texto">{{ s.relato }}</p>
+            </div>
+            <div v-if="s.anotacoes">
+              <p class="rotulo">Anotações da sessão</p>
+              <p class="texto anotacoes">{{ s.anotacoes }}</p>
+            </div>
+            <div class="acoes">
+              <!-- Só uma sessão é editada por vez, para não perder texto digitado. -->
+              <button type="button" :disabled="edicao !== null" @click="editar(s)">Editar</button>
+              <button type="button" class="perigo" @click="excluindo = s">Excluir</button>
+            </div>
+          </div>
+        </Colapsavel>
       </li>
     </ol>
-    <p v-if="!sessoes.length" class="vazio">Nenhuma sessão registrada.</p>
+    <p v-else class="vazio">{{ busca ? 'Nenhuma sessão encontrada.' : 'Nenhuma sessão registrada.' }}</p>
 
     <Confirmacao
       v-if="excluindo"
@@ -111,5 +177,5 @@ async function excluir() {
       @cancelar="excluindo = null"
       @confirmar="excluir"
     />
-  </section>
+  </Colapsavel>
 </template>

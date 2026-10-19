@@ -12,7 +12,7 @@ const busca = defineModel('busca');
 <template>
   <aside class="lista">
     <div class="abas">
-      <button :class="{ ativa: situacao === 'ativo' }" @click="$emit('trocar-aba', 'ativo')">Ativos</button>
+      <button :class="{ ativa: situacao === 'ativo' }" @click="$emit('trocar-aba', 'ativo')">Prontuários</button>
       <button :class="{ ativa: situacao === 'arquivado' }" @click="$emit('trocar-aba', 'arquivado')">Arquivo</button>
     </div>
     <input v-model="busca" type="search" placeholder="Buscar por nome" />
@@ -25,5 +25,6 @@ const busca = defineModel('busca');
       </li>
     </ul>
     <p v-if="!pacientes.length" class="vazio">Nenhum paciente.</p>
+    <p class="aviso-local">Os dados estão apenas neste computador.</p>
   </aside>
 </template>

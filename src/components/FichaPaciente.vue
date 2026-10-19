@@ -1,13 +1,13 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue';
 import Confirmacao from './Confirmacao.vue';
-import Valores from './Valores.vue';
+import Colapsavel from './Colapsavel.vue';
+import CampoValor from './CampoValor.vue';
 import Sessoes from './Sessoes.vue';
-import { reaisParaCentavos, hoje, mensagemDeErro } from '../utilitarios.js';
+import { reaisParaCentavos, centavosParaCampo, mensagemDeErro } from '../utilitarios.js';
 
 const props = defineProps({ pacienteId: [Number, String] });
 const emit = defineEmits(['salvo', 'mudou-situacao', 'alteracao-pendente']);
-const valorInicial = ref('');
 
 const CAMPOS = [
   'nome_completo', 'cpf', 'data_nascimento', 'cidade', 'queixa_inicial',
@@ -18,24 +18,53 @@ const CAMPOS = [
 // O pai recria este componente (:key) ao trocar de paciente, então 'novo' vale só no setup.
 const novo = props.pacienteId === 'novo';
 const ficha = ref(Object.fromEntries(CAMPOS.map((c) => [c, ''])));
+const nomeSalvo = ref('');
 const situacao = ref('ativo');
 const erro = ref('');
 const confirmandoExclusao = ref(false);
 const editando = ref(novo);
+const dadosAbertos = ref(true);
+
+// Histórico de valores (o mais recente primeiro) e os dois campos de valor da ficha.
+// O valor atual é a primeira linha do histórico.
+const historico = ref([]);
+const atual = computed(() => historico.value[0] ?? null);
+const valorSalvo = computed(() => (atual.value ? centavosParaCampo(atual.value.valor) : ''));
+const dataSalva = computed(() => atual.value?.a_partir_de ?? '');
+const valorCampo = ref('');
+const dataCampo = ref('');
 
 // Retrato dos campos como estão salvos, para saber se há alteração pendente.
-const retrato = () => JSON.stringify([ficha.value, valorInicial.value]);
+const retrato = () => JSON.stringify(ficha.value);
 const retratoSalvo = ref(retrato());
-const alterado = computed(() => editando.value && retrato() !== retratoSalvo.value);
+const alterado = computed(
+  () =>
+    editando.value &&
+    (retrato() !== retratoSalvo.value ||
+      valorCampo.value !== valorSalvo.value ||
+      dataCampo.value !== dataSalva.value)
+);
 
 // O App.vue usa isso para proteger a saída da ficha.
 watch(alterado, (pendente) => emit('alteracao-pendente', pendente));
 
+function restaurarCampoValor() {
+  valorCampo.value = valorSalvo.value;
+  dataCampo.value = dataSalva.value;
+}
+
+async function carregarHistorico() {
+  historico.value = await window.api.valores.listar(props.pacienteId);
+}
+
 async function carregarFicha() {
   const p = await window.api.pacientes.obter(props.pacienteId);
   for (const c of CAMPOS) ficha.value[c] = p[c] ?? '';
+  nomeSalvo.value = p.nome_completo;
   situacao.value = p.situacao;
   retratoSalvo.value = retrato();
+  await carregarHistorico();
+  restaurarCampoValor();
 }
 
 onMounted(() => {
@@ -51,31 +80,50 @@ async function executar(acao) {
   }
 }
 
+// Valor e data "a partir de" andam juntos: ou os dois preenchidos, ou nenhum.
+// Devolve null quando não há valor novo a registrar.
+function conferirValor() {
+  const texto = valorCampo.value.trim();
+  const data = dataCampo.value;
+  if (!texto && !data) return null;
+  if (!texto || !data) {
+    throw new Error('Preencha o valor e a data "a partir de", ou deixe os dois vazios');
+  }
+  const centavos = reaisParaCentavos(texto);
+  if (centavos === null) throw new Error('Digite o valor em reais, por exemplo 150,00');
+  // Igual ao que já está salvo: não cria linha repetida no histórico.
+  if (atual.value && centavos === atual.value.valor && data === atual.value.a_partir_de) return null;
+  return { centavos, data };
+}
+
+function iniciarEdicao() {
+  dadosAbertos.value = true;
+  editando.value = true;
+}
+
 function salvar() {
   executar(async () => {
     // A cópia ({ ...ficha }) tira o proxy do Vue, que o IPC não consegue enviar.
     const dados = { ...ficha.value };
+    // O valor é conferido antes de gravar, para não ficar um cadastro pela metade.
+    const valorNovo = conferirValor();
 
     if (!novo) {
       await window.api.pacientes.atualizar(props.pacienteId, dados);
+      if (valorNovo) await window.api.valores.adicionar(props.pacienteId, valorNovo.centavos, valorNovo.data);
+      nomeSalvo.value = dados.nome_completo;
       retratoSalvo.value = retrato();
+      await carregarHistorico();
+      restaurarCampoValor();
       editando.value = false;
       emit('salvo', props.pacienteId);
       return;
     }
 
-    // O valor é conferido antes de criar o paciente, para não ficar um cadastro pela metade.
-    let centavos = null;
-    if (valorInicial.value.trim()) {
-      centavos = reaisParaCentavos(valorInicial.value);
-      if (centavos === null) throw new Error('Digite o valor em reais, por exemplo 150,00');
-    }
-
     const id = await window.api.pacientes.criar(dados);
-    if (centavos !== null) {
-      // Vale desde o início do atendimento (ou desde hoje, se a data estiver vazia).
-      // Se falhar, o paciente já existe e o valor pode ser registrado depois, no bloco da ficha.
-      await window.api.valores.adicionar(id, centavos, ficha.value.data_inicio || hoje()).catch(() => {});
+    if (valorNovo) {
+      // Se falhar, o paciente já existe e o valor pode ser registrado depois, editando a ficha.
+      await window.api.valores.adicionar(id, valorNovo.centavos, valorNovo.data).catch(() => {});
     }
     emit('salvo', id);
   });
@@ -86,6 +134,14 @@ function cancelarEdicao() {
   executar(async () => {
     await carregarFicha();
     editando.value = false;
+  });
+}
+
+// Depois de remover uma linha do histórico, o valor atual pode ter mudado.
+function aposRemoverValor() {
+  executar(async () => {
+    await carregarHistorico();
+    restaurarCampoValor();
   });
 }
 
@@ -114,63 +170,79 @@ function excluir() {
 
 <template>
   <form class="ficha" @submit.prevent="salvar">
-    <h2>{{ novo ? 'Novo paciente' : 'Ficha do paciente' }}</h2>
-
-    <fieldset :disabled="!editando">
-      <label class="largo">Nome completo
-        <input v-model="ficha.nome_completo" required />
-      </label>
-      <label>CPF
-        <input v-model="ficha.cpf" />
-      </label>
-      <label>Data de nascimento
-        <input v-model="ficha.data_nascimento" type="date" />
-      </label>
-      <label>Cidade
-        <input v-model="ficha.cidade" />
-      </label>
-      <label>Início do atendimento
-        <input v-model="ficha.data_inicio" type="date" />
-      </label>
-      <label>Celular
-        <input v-model="ficha.celular" />
-      </label>
-      <label>Contato de emergência (nome)
-        <input v-model="ficha.contato_emergencia_nome" />
-      </label>
-      <label>Contato de emergência (telefone)
-        <input v-model="ficha.contato_emergencia_telefone" />
-      </label>
-      <label v-if="novo">Valor da sessão (R$)
-        <input v-model="valorInicial" inputmode="decimal" placeholder="150,00" />
-      </label>
-      <label class="largo">Queixa inicial
-        <textarea v-model="ficha.queixa_inicial" rows="3" />
-      </label>
-      <label class="largo">Adendos
-        <textarea v-model="ficha.adendos" rows="3" />
-      </label>
-      <label class="largo">Anotações do caso
-        <textarea v-model="ficha.anotacoes_caso" rows="4" />
-      </label>
-    </fieldset>
+    <header class="ficha-topo">
+      <h2>{{ novo ? 'Novo paciente' : nomeSalvo }}</h2>
+      <div class="acoes">
+        <!-- As chaves impedem o Vue de reaproveitar o mesmo botão: o clique em
+             "Editar" viraria um envio do formulário ao trocar o tipo do botão. -->
+        <template v-if="editando" key="edicao">
+          <button type="submit" class="principal">Salvar</button>
+          <button v-if="!novo" type="button" @click="cancelarEdicao">Cancelar</button>
+        </template>
+        <template v-else key="leitura">
+          <button type="button" class="principal" @click="iniciarEdicao">Editar</button>
+          <button v-if="situacao === 'ativo'" type="button" @click="arquivar">Arquivar</button>
+          <button v-else type="button" @click="desarquivar">Desarquivar</button>
+          <button type="button" class="perigo" @click="confirmandoExclusao = true">Excluir</button>
+        </template>
+      </div>
+    </header>
 
     <p v-if="erro" class="erro">{{ erro }}</p>
 
-    <div class="acoes">
-      <!-- As chaves impedem o Vue de reaproveitar o mesmo botão: o clique em
-           "Editar" viraria um envio do formulário ao trocar o tipo do botão. -->
-      <template v-if="editando" key="edicao">
-        <button type="submit" class="principal">Salvar</button>
-        <button v-if="!novo" type="button" @click="cancelarEdicao">Cancelar</button>
-      </template>
-      <template v-else key="leitura">
-        <button type="button" class="principal" @click="editando = true">Editar</button>
-        <button v-if="situacao === 'ativo'" type="button" @click="arquivar">Arquivar</button>
-        <button v-else type="button" @click="desarquivar">Desarquivar</button>
-        <button type="button" class="perigo" @click="confirmandoExclusao = true">Excluir</button>
-      </template>
-    </div>
+    <Colapsavel v-model:aberto="dadosAbertos" titulo="Dados do paciente">
+      <!-- O nome é conferido pelo banco, e não por "required": com a seção recolhida
+           o navegador bloquearia o envio sem mostrar nada. -->
+      <div class="grade">
+        <fieldset :disabled="!editando">
+          <label class="largo">Nome completo
+            <input v-model="ficha.nome_completo" />
+          </label>
+          <label>CPF
+            <input v-model="ficha.cpf" />
+          </label>
+          <label>Data de nascimento
+            <input v-model="ficha.data_nascimento" type="date" />
+          </label>
+          <label>Cidade
+            <input v-model="ficha.cidade" />
+          </label>
+          <label>Início do atendimento
+            <input v-model="ficha.data_inicio" type="date" />
+          </label>
+          <label>Celular
+            <input v-model="ficha.celular" />
+          </label>
+          <label>Contato de emergência (nome)
+            <input v-model="ficha.contato_emergencia_nome" />
+          </label>
+        </fieldset>
+
+        <CampoValor
+          v-model:valor="valorCampo"
+          v-model:data="dataCampo"
+          :historico="historico"
+          :editando="editando"
+          @removido="aposRemoverValor"
+          @erro="erro = $event"
+        />
+
+        <fieldset :disabled="!editando">
+          <label>Contato de emergência (número)
+            <input v-model="ficha.contato_emergencia_telefone" />
+          </label>
+          <label class="largo">Queixa inicial
+            <textarea v-model="ficha.queixa_inicial" />
+          </label>
+          <label class="largo">Adendos
+            <textarea v-model="ficha.adendos" />
+          </label>
+          <label class="largo">Anotações do caso
+            <textarea v-model="ficha.anotacoes_caso" />
+          </label>
+        </fieldset>
+      </div>
+    </Colapsavel>
 
     <Confirmacao
       v-if="confirmandoExclusao"
@@ -179,8 +251,5 @@ function excluir() {
       @confirmar="excluir"
     />
   </form>
-  <template v-if="!novo">
-    <Valores :paciente-id="pacienteId" />
-    <Sessoes :paciente-id="pacienteId" />
-  </template>
+  <Sessoes v-if="!novo" :paciente-id="pacienteId" />
 </template>

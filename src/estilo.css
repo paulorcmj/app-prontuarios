@@ -9,8 +9,12 @@ button.principal { background: #2f5d8a; border-color: #2f5d8a; color: #fff; }
 button.principal:hover { background: #274d73; }
 button.perigo { color: #a32626; border-color: #d9a3a3; }
 input, textarea { width: 100%; padding: 6px 8px; border: 1px solid #c4cad3; border-radius: 6px; background: #fff; }
+/* O campo cresce conforme o texto, em vez de ter a alça de redimensionar. */
+textarea { min-height: 4.5em; resize: none; field-sizing: content; }
+input:disabled, textarea:disabled { background: #f0f2f5; color: #1f2933; }
+label, .campo { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #3e4856; }
 
-.app { display: grid; grid-template-columns: 280px 1fr; grid-template-rows: 1fr auto; height: 100%; }
+.app { display: grid; grid-template-columns: 280px 1fr; grid-template-rows: 1fr; height: 100%; }
 .lista { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-right: 1px solid #dde1e7; background: #fff; overflow-y: auto; }
 .abas { display: flex; gap: 4px; }
 .abas button { flex: 1; }
@@ -18,14 +22,10 @@ input, textarea { width: 100%; padding: 6px 8px; border: 1px solid #c4cad3; bord
 .lista ul { margin: 0; padding: 0; list-style: none; }
 .lista li button { width: 100%; text-align: left; border-color: transparent; }
 .lista li button.selecionado { background: #e3ebf4; }
+.aviso-local { margin: auto 0 0; padding-top: 12px; font-size: 12px; color: #5b6573; }
 .painel { padding: 20px 24px; overflow-y: auto; }
-.rodape { grid-column: 1 / -1; padding: 6px 12px; border-top: 1px solid #dde1e7; background: #fff; font-size: 13px; color: #5b6573; }
 .vazio { color: #5b6573; }
 
-.ficha { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; max-width: 760px; }
-.ficha h2 { grid-column: 1 / -1; margin: 0; }
-.ficha label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #3e4856; }
-.ficha .largo, .ficha > .acoes, .ficha .erro { grid-column: 1 / -1; }
 .acoes { display: flex; gap: 8px; }
 .erro { margin: 0; color: #a32626; }
 
@@ -33,22 +33,45 @@ input, textarea { width: 100%; padding: 6px 8px; border: 1px solid #c4cad3; bord
 .janela { width: 360px; padding: 20px; border-radius: 8px; background: #fff; }
 .janela .acoes { justify-content: flex-end; }
 
-.bloco { max-width: 760px; margin-top: 28px; padding-top: 16px; border-top: 1px solid #dde1e7; }
-.bloco h3 { margin: 0 0 12px; }
-.bloco label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #3e4856; }
-.form-sessao { display: flex; flex-direction: column; gap: 12px; }
-.form-valor { display: flex; align-items: flex-end; gap: 12px; }
-.form-valor label { flex: 1; }
-.linha-atual { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
-.linha-atual p { margin: 0; }
-.menu-historico { position: relative; }
-.historico { position: absolute; top: calc(100% + 4px); left: 0; z-index: 10; width: 260px; max-height: 220px; margin: 0; padding: 4px 12px; overflow-y: auto; list-style: none; border: 1px solid #c4cad3; border-radius: 6px; background: #fff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); color: #3e4856; }
-.historico li { padding: 4px 0; }
-.sessoes { display: flex; flex-direction: column; gap: 12px; margin: 20px 0 0; padding: 0; list-style: none; }
-.sessoes li { padding: 12px; border: 1px solid #dde1e7; border-radius: 6px; background: #fff; }
-.sessoes li.editando { border-color: #2f5d8a; }
-.sessoes header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-.texto { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.anotacoes { color: #5b6573; }
+/* Seção que recolhe */
+.colapsavel-cabecalho { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.colapsavel-botao { display: flex; align-items: center; gap: 8px; padding: 4px 0; border: 0; background: transparent; font-weight: 600; font-size: 1.05em; }
+.colapsavel-botao:hover { background: transparent; }
+.colapsavel-acoes { display: flex; align-items: center; gap: 8px; }
+.colapsavel-acoes input { width: 220px; }
+.colapsavel-corpo { padding-top: 12px; }
+.seta { width: 8px; height: 8px; border-right: 2px solid #5b6573; border-bottom: 2px solid #5b6573; transform: rotate(-45deg); transition: transform 0.15s; }
+.seta.aberta { transform: rotate(45deg); }
+.contagem { margin-left: 6px; font-size: 13px; font-weight: 400; color: #5b6573; }
+
+/* Ficha */
+.ficha { display: flex; flex-direction: column; gap: 16px; max-width: 760px; }
+.ficha-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ficha-topo h2 { margin: 0; }
+.grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+.grade .largo { grid-column: 1 / -1; }
 .ficha fieldset { display: contents; min-width: 0; margin: 0; padding: 0; border: 0; }
-input:disabled, textarea:disabled { background: #f0f2f5; color: #1f2933; }
+
+/* Valor e "a partir de", lado a lado, com o botão do histórico dentro do campo.
+   A lista do histórico se ancora no campo (e não no botão), para abrir para a direita
+   e não ser cortada pela borda do painel. */
+.par-valor { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.campo-com-botao { position: relative; }
+.campo-com-botao input { padding-right: 42px; }
+.menu-historico button.icone { position: absolute; top: 3px; right: 3px; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; }
+.historico { position: absolute; top: calc(100% + 4px); left: 0; z-index: 10; min-width: 290px; max-height: 240px; margin: 0; padding: 4px 12px; overflow-y: auto; list-style: none; border: 1px solid #c4cad3; border-radius: 6px; background: #fff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); color: #3e4856; font-size: 13px; }
+.historico li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; }
+.historico button { padding: 2px 8px; font-size: 12px; }
+
+/* Sessões */
+.bloco { max-width: 760px; margin-top: 28px; padding-top: 16px; border-top: 1px solid #dde1e7; }
+.form-sessao { display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; padding: 12px; border: 1px solid #2f5d8a; border-radius: 6px; background: #fff; }
+.sessoes { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.sessoes li { scroll-margin: 16px; }
+.sessao { padding: 6px 12px; border: 1px solid #dde1e7; border-radius: 6px; background: #fff; }
+.sessao.editando { border-color: #2f5d8a; }
+.sessao-data { font-size: 13px; font-weight: 400; color: #5b6573; }
+.sessao-corpo { display: flex; flex-direction: column; gap: 10px; padding-bottom: 6px; }
+.rotulo { margin: 0; font-size: 12px; color: #5b6573; }
+.texto { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.anotacoes { color: #5b6573; }
