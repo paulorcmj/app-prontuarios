@@ -57,6 +57,12 @@ const MIGRACOES = [
   // Versão 2: título da sessão. O SQLite exige um DEFAULT para acrescentar coluna NOT NULL;
   // a obrigatoriedade do título é validada ao criar e editar (validarTitulo).
   `ALTER TABLE sessoes ADD COLUMN titulo TEXT NOT NULL DEFAULT '';`,
+  // Versão 3: data da última modificação do paciente, usada para ordenar a lista.
+  // Os pacientes que já existem recebem a hora da migração.
+  `
+  ALTER TABLE pacientes ADD COLUMN modificado_em TEXT;
+  UPDATE pacientes SET modificado_em = strftime('%Y-%m-%d %H:%M', 'now', 'localtime');
+  `,
 ];
 
 let db;
@@ -99,6 +105,20 @@ function agora() {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+// Marca o paciente como modificado agora. Sessões e valores também contam,
+// porque fazem parte do prontuário.
+function tocar(pacienteId) {
+  db.prepare('UPDATE pacientes SET modificado_em = ? WHERE id = ?').run(agora(), pacienteId);
+}
+
+function pacienteDaSessao(id) {
+  return db.prepare('SELECT paciente_id FROM sessoes WHERE id = ?').get(id)?.paciente_id;
+}
+
+function pacienteDoValor(id) {
+  return db.prepare('SELECT paciente_id FROM valores WHERE id = ?').get(id)?.paciente_id;
+}
+
 // Valida o nome e monta um objeto só com os campos da ficha.
 function soCamposDaFicha(dados) {
   if (!dados.nome_completo || !dados.nome_completo.trim()) {
@@ -114,7 +134,9 @@ function criarPaciente(dados) {
   // Os nomes das colunas vêm da lista fixa acima, nunca da tela.
   const colunas = CAMPOS_PACIENTE.join(', ');
   const valores = CAMPOS_PACIENTE.map((c) => '@' + c).join(', ');
-  const r = db.prepare(`INSERT INTO pacientes (${colunas}) VALUES (${valores})`).run(ficha);
+  const r = db
+    .prepare(`INSERT INTO pacientes (${colunas}, modificado_em) VALUES (${valores}, @modificado_em)`)
+    .run({ ...ficha, modificado_em: agora() });
   return Number(r.lastInsertRowid);
 }
 
@@ -122,15 +144,20 @@ function criarPaciente(dados) {
 function atualizarPaciente(id, dados) {
   const ficha = soCamposDaFicha(dados);
   const sets = CAMPOS_PACIENTE.map((c) => `${c} = @${c}`).join(', ');
-  db.prepare(`UPDATE pacientes SET ${sets} WHERE id = @id`).run({ ...ficha, id });
+  db.prepare(`UPDATE pacientes SET ${sets}, modificado_em = @modificado_em WHERE id = @id`)
+    .run({ ...ficha, id, modificado_em: agora() });
 }
 
+// Devolve também a última modificação e a data da última sessão;
+// a ordem da lista é escolhida na tela.
 function listarPacientes(situacao, busca) {
   return db
     .prepare(
-      `SELECT id, nome_completo, situacao FROM pacientes
-       WHERE situacao = ? AND nome_completo LIKE ?
-       ORDER BY nome_completo COLLATE NOCASE`
+      `SELECT p.id, p.nome_completo, p.situacao, p.modificado_em,
+              (SELECT MAX(data_hora) FROM sessoes WHERE paciente_id = p.id) AS ultima_sessao
+       FROM pacientes p
+       WHERE p.situacao = ? AND p.nome_completo LIKE ?
+       ORDER BY p.nome_completo COLLATE NOCASE`
     )
     .all(situacao, `%${busca || ''}%`);
 }
@@ -173,6 +200,7 @@ function criarSessao(pacienteId, dados) {
   const r = db
     .prepare('INSERT INTO sessoes (paciente_id, data_hora, titulo, relato, anotacoes) VALUES (?, ?, ?, ?, ?)')
     .run(pacienteId, dados.data_hora, titulo, dados.relato ?? null, dados.anotacoes ?? null);
+  tocar(pacienteId);
   return Number(r.lastInsertRowid);
 }
 
@@ -203,10 +231,14 @@ function atualizarSessao(id, dados) {
   const titulo = validarTitulo(dados.titulo);
   db.prepare('UPDATE sessoes SET data_hora = ?, titulo = ?, relato = ?, anotacoes = ? WHERE id = ?')
     .run(dados.data_hora, titulo, dados.relato ?? null, dados.anotacoes ?? null, id);
+  const pacienteId = pacienteDaSessao(id);
+  if (pacienteId) tocar(pacienteId);
 }
 
 function excluirSessao(id) {
+  const pacienteId = pacienteDaSessao(id);
   db.prepare('DELETE FROM sessoes WHERE id = ?').run(id);
+  if (pacienteId) tocar(pacienteId);
 }
 
 // Valor em centavos (R$ 150,00 = 15000). Cada reajuste é uma linha nova.
@@ -220,6 +252,7 @@ function adicionarValor(pacienteId, valor, aPartirDe) {
   const r = db
     .prepare('INSERT INTO valores (paciente_id, valor, a_partir_de) VALUES (?, ?, ?)')
     .run(pacienteId, valor, aPartirDe);
+  tocar(pacienteId);
   return Number(r.lastInsertRowid);
 }
 
@@ -231,7 +264,9 @@ function listarValores(pacienteId) {
 
 // Remove uma linha do histórico. Não há edição: para corrigir, remove-se e adiciona-se outra.
 function excluirValor(id) {
+  const pacienteId = pacienteDoValor(id);
   db.prepare('DELETE FROM valores WHERE id = ?').run(id);
+  if (pacienteId) tocar(pacienteId);
 }
 
 // Valor atual: a linha mais recente do histórico.

@@ -6,6 +6,7 @@ import FormSessao from './FormSessao.vue';
 import { dataHoraBR, agoraLocal, mensagemDeErro } from '../utilitarios.js';
 
 const props = defineProps({ pacienteId: Number });
+const emit = defineEmits(['alteracao-pendente']);
 
 const sessoes = ref([]);
 // O banco devolve em ordem cronológica; a tela mostra da mais recente para a mais antiga.
@@ -24,6 +25,17 @@ const novaAberta = ref(false);
 const nova = ref(formularioVazio());
 // Edição: o formulário aparece dentro da própria sessão, no lugar do texto.
 const edicao = ref(null);
+
+// Retrato dos formulários como estavam ao abrir, para saber se há texto sem salvar.
+const novaOriginal = ref('');
+const edicaoOriginal = ref('');
+const alteracaoPendente = computed(
+  () =>
+    (novaAberta.value && JSON.stringify(nova.value) !== novaOriginal.value) ||
+    (edicao.value !== null && JSON.stringify(edicao.value) !== edicaoOriginal.value)
+);
+// A ficha repassa o aviso ao App.vue, que protege a troca de tela e o fechamento do app.
+watch(alteracaoPendente, (pendente) => emit('alteracao-pendente', pendente));
 
 function formularioVazio() {
   return { data_hora: agoraLocal(), titulo: '', relato: '', anotacoes: '' };
@@ -57,6 +69,7 @@ async function abrirNova() {
   // Já há uma sessão nova sendo digitada: não apaga o que foi escrito.
   if (!novaAberta.value) {
     nova.value = formularioVazio();
+    novaOriginal.value = JSON.stringify(nova.value);
     novaAberta.value = true;
   }
   await nextTick();
@@ -90,6 +103,7 @@ function editar(sessao) {
     relato: sessao.relato ?? '',
     anotacoes: sessao.anotacoes ?? '',
   };
+  edicaoOriginal.value = JSON.stringify(edicao.value);
   mostrarSessao(sessao.id);
 }
 

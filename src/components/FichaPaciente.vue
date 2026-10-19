@@ -45,8 +45,12 @@ const alterado = computed(
       dataCampo.value !== dataSalva.value)
 );
 
+// Formulários de sessão com texto sem salvar também contam como alteração pendente.
+const sessoesPendentes = ref(false);
+const pendente = computed(() => alterado.value || sessoesPendentes.value);
+
 // O App.vue usa isso para proteger a saída da ficha.
-watch(alterado, (pendente) => emit('alteracao-pendente', pendente));
+watch(pendente, (valor) => emit('alteracao-pendente', valor));
 
 function restaurarCampoValor() {
   valorCampo.value = valorSalvo.value;
@@ -251,5 +255,5 @@ function excluir() {
       @confirmar="excluir"
     />
   </form>
-  <Sessoes v-if="!novo" :paciente-id="pacienteId" />
+  <Sessoes v-if="!novo" :paciente-id="pacienteId" @alteracao-pendente="sessoesPendentes = $event" />
 </template>

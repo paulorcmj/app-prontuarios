@@ -1,7 +1,7 @@
 // Processo principal do Electron: abre o banco, cria a janela
 // e responde aos pedidos da tela.
 
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
 const banco = require('./banco');
 
@@ -63,6 +63,8 @@ function registrarIpc() {
 app.whenReady().then(() => {
   banco.iniciar();
   registrarIpc();
+  // Sem a barra de menu padrão (File, Edit, View, Window).
+  Menu.setApplicationMenu(null);
   criarJanela();
 });
 
