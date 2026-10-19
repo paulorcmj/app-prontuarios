@@ -34,7 +34,7 @@ const MIGRACOES = [
     arquivado_em TEXT
   );
 
-  -- Histórico de valores: cada reajuste é uma linha nova, nada é sobrescrito.
+  -- Histórico de valores: cada reajuste é uma linha nova.
   -- O valor é guardado em centavos para evitar erro de arredondamento.
   CREATE TABLE valores (
     id INTEGER PRIMARY KEY,
@@ -54,6 +54,9 @@ const MIGRACOES = [
   CREATE INDEX idx_valores_paciente ON valores (paciente_id, a_partir_de);
   CREATE INDEX idx_sessoes_paciente ON sessoes (paciente_id, data_hora);
   `,
+  // Versão 2: título da sessão. O SQLite exige um DEFAULT para acrescentar coluna NOT NULL;
+  // a obrigatoriedade do título é validada ao criar e editar (validarTitulo).
+  `ALTER TABLE sessoes ADD COLUMN titulo TEXT NOT NULL DEFAULT '';`,
 ];
 
 let db;
@@ -157,26 +160,49 @@ function validarDataHora(dataHora) {
   }
 }
 
+// O título é obrigatório; devolve o texto sem espaços nas pontas.
+function validarTitulo(titulo) {
+  const limpo = String(titulo ?? '').trim();
+  if (!limpo) throw new Error('O título da sessão é obrigatório');
+  return limpo;
+}
+
 function criarSessao(pacienteId, dados) {
   validarDataHora(dados.data_hora);
+  const titulo = validarTitulo(dados.titulo);
   const r = db
-    .prepare('INSERT INTO sessoes (paciente_id, data_hora, relato, anotacoes) VALUES (?, ?, ?, ?)')
-    .run(pacienteId, dados.data_hora, dados.relato ?? null, dados.anotacoes ?? null);
+    .prepare('INSERT INTO sessoes (paciente_id, data_hora, titulo, relato, anotacoes) VALUES (?, ?, ?, ?, ?)')
+    .run(pacienteId, dados.data_hora, titulo, dados.relato ?? null, dados.anotacoes ?? null);
   return Number(r.lastInsertRowid);
 }
 
 // Ordem cronológica; o id desempata sessões no mesmo horário.
-function listarSessoes(pacienteId) {
+// Com busca, filtra por título, relato ou anotações do paciente.
+function listarSessoes(pacienteId, busca) {
+  const termo = (busca || '').trim();
+  if (!termo) {
+    return db
+      .prepare('SELECT * FROM sessoes WHERE paciente_id = ? ORDER BY data_hora, id')
+      .all(pacienteId);
+  }
+  // % e _ digitados pelo usuário valem como texto comum, não como curinga do LIKE.
+  const padrao = '%' + termo.replace(/[\\%_]/g, '\\$&') + '%';
   return db
-    .prepare('SELECT * FROM sessoes WHERE paciente_id = ? ORDER BY data_hora, id')
-    .all(pacienteId);
+    .prepare(
+      `SELECT * FROM sessoes
+       WHERE paciente_id = ?
+         AND (titulo LIKE ? ESCAPE '\\' OR relato LIKE ? ESCAPE '\\' OR anotacoes LIKE ? ESCAPE '\\')
+       ORDER BY data_hora, id`
+    )
+    .all(pacienteId, padrao, padrao, padrao);
 }
 
-// Recebe a sessão inteira: o campo que não vier fica vazio.
+// Recebe a sessão inteira: o campo que não vier fica vazio (o título não pode).
 function atualizarSessao(id, dados) {
   validarDataHora(dados.data_hora);
-  db.prepare('UPDATE sessoes SET data_hora = ?, relato = ?, anotacoes = ? WHERE id = ?')
-    .run(dados.data_hora, dados.relato ?? null, dados.anotacoes ?? null, id);
+  const titulo = validarTitulo(dados.titulo);
+  db.prepare('UPDATE sessoes SET data_hora = ?, titulo = ?, relato = ?, anotacoes = ? WHERE id = ?')
+    .run(dados.data_hora, titulo, dados.relato ?? null, dados.anotacoes ?? null, id);
 }
 
 function excluirSessao(id) {
@@ -201,6 +227,11 @@ function listarValores(pacienteId) {
   return db
     .prepare('SELECT * FROM valores WHERE paciente_id = ? ORDER BY a_partir_de DESC, id DESC')
     .all(pacienteId);
+}
+
+// Remove uma linha do histórico. Não há edição: para corrigir, remove-se e adiciona-se outra.
+function excluirValor(id) {
+  db.prepare('DELETE FROM valores WHERE id = ?').run(id);
 }
 
 // Valor atual: a linha mais recente do histórico.
@@ -237,6 +268,7 @@ module.exports = {
   excluirSessao,
   adicionarValor,
   listarValores,
+  excluirValor,
   valorAtual,
   valorNaData,
 };
