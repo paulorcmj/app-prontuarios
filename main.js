@@ -10,6 +10,8 @@ function criarJanela() {
   const janela = new BrowserWindow({
     width: 1100,
     height: 700,
+    minWidth: 720,
+    minHeight: 520,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       // A tela roda isolada, sem acesso ao Node nem ao banco.
