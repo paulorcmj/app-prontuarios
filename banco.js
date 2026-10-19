@@ -63,6 +63,18 @@ const MIGRACOES = [
   ALTER TABLE pacientes ADD COLUMN modificado_em TEXT;
   UPDATE pacientes SET modificado_em = strftime('%Y-%m-%d %H:%M', 'now', 'localtime');
   `,
+  // Versão 4: dados do profissional (cabeçalho do PDF). Linha única, preenchida pela tela "Meus dados".
+  `
+  CREATE TABLE profissional (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    nome TEXT NOT NULL DEFAULT '',
+    crp TEXT NOT NULL DEFAULT '',
+    email TEXT NOT NULL DEFAULT ''
+  );
+  INSERT INTO profissional (id) VALUES (1);
+  `,
+  // Versão 5: foto do perfil, guardada como imagem em texto (data URL), já reduzida pela tela.
+  `ALTER TABLE profissional ADD COLUMN foto TEXT NOT NULL DEFAULT '';`,
 ];
 
 let db;
@@ -288,6 +300,22 @@ function valorNaData(pacienteId, data) {
     .get(pacienteId, data.slice(0, 10)) ?? null;
 }
 
+function obterProfissional() {
+  return db.prepare('SELECT nome, crp, email, foto FROM profissional WHERE id = 1').get();
+}
+
+function salvarProfissional(dados) {
+  const nome = String(dados.nome ?? '').trim();
+  if (!nome) throw new Error('O nome é obrigatório');
+  // A tela já reduz a foto; este limite só impede lixo ou imagem gigante no banco.
+  const foto = String(dados.foto ?? '');
+  if (foto && (!foto.startsWith('data:image/') || foto.length > 500000)) {
+    throw new Error('A foto é inválida ou grande demais');
+  }
+  db.prepare('UPDATE profissional SET nome = ?, crp = ?, email = ?, foto = ? WHERE id = 1')
+    .run(nome, String(dados.crp ?? '').trim(), String(dados.email ?? '').trim(), foto);
+}
+
 module.exports = {
   iniciar,
   criarPaciente,
@@ -306,4 +334,7 @@ module.exports = {
   excluirValor,
   valorAtual,
   valorNaData,
+  obterProfissional,
+  salvarProfissional,
 };
+

@@ -163,6 +163,13 @@ function desarquivar() {
   });
 }
 
+// O PDF é montado no processo principal, com o que está salvo no banco.
+function gerarPdf() {
+  executar(async () => {
+    await window.api.pdf.paciente(props.pacienteId);
+  });
+}
+
 function excluir() {
   confirmandoExclusao.value = false;
   executar(async () => {
@@ -185,6 +192,7 @@ function excluir() {
         </template>
         <template v-else key="leitura">
           <button type="button" class="principal" @click="iniciarEdicao">Editar</button>
+          <button type="button" @click="gerarPdf">Gerar PDF</button>
           <button v-if="situacao === 'ativo'" type="button" @click="arquivar">Arquivar</button>
           <button v-else type="button" @click="desarquivar">Desarquivar</button>
           <button type="button" class="perigo" @click="confirmandoExclusao = true">Excluir</button>
@@ -208,7 +216,7 @@ function excluir() {
           <label>Data de nascimento
             <input v-model="ficha.data_nascimento" type="date" />
           </label>
-          <label>Cidade
+          <label>Cidade e estado
             <input v-model="ficha.cidade" />
           </label>
           <label>Início do atendimento

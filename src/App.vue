@@ -3,12 +3,17 @@ import { ref, watch, onMounted } from 'vue';
 import ListaPacientes from './components/ListaPacientes.vue';
 import FichaPaciente from './components/FichaPaciente.vue';
 import Confirmacao from './components/Confirmacao.vue';
+import Profissional from './components/Profissional.vue';
 
 const situacao = ref('ativo');
 const busca = ref('');
 const pacientes = ref([]);
 // id do paciente aberto, 'novo' para cadastro, ou null quando não há nenhum
 const aberto = ref(null);
+
+// Dados do profissional (perfil da lateral) e janela de configurações.
+const profissional = ref({ nome: '', crp: '', email: '', foto: '' });
+const dadosProfissionalAberto = ref(false);
 
 // A ficha avisa quando há alterações que ainda não foram salvas.
 const alteracaoPendente = ref(false);
@@ -17,6 +22,10 @@ const saidaPendente = ref(null);
 
 async function carregarLista() {
   pacientes.value = await window.api.pacientes.listar(situacao.value, busca.value);
+}
+
+async function carregarProfissional() {
+  profissional.value = await window.api.profissional.obter();
 }
 
 watch([situacao, busca], carregarLista);
@@ -35,6 +44,7 @@ function avisarAoFechar(evento) {
 
 onMounted(() => {
   carregarLista();
+  carregarProfissional();
   window.addEventListener('beforeunload', avisarAoFechar);
 });
 
@@ -91,9 +101,11 @@ async function aoMudarSituacao() {
       :situacao="situacao"
       :pacientes="pacientes"
       :aberto="aberto"
+      :profissional="profissional"
       @trocar-aba="trocarAba"
       @abrir="abrirPaciente"
       @novo="novoPaciente"
+      @configuracoes="dadosProfissionalAberto = true"
     />
     <main class="painel">
       <FichaPaciente
@@ -114,6 +126,11 @@ async function aoMudarSituacao() {
       rotulo-confirmar="Sair sem salvar"
       @cancelar="saidaPendente = null"
       @confirmar="confirmarSaida"
+    />
+    <Profissional
+      v-if="dadosProfissionalAberto"
+      @salvo="carregarProfissional"
+      @fechar="dadosProfissionalAberto = false"
     />
   </div>
 </template>

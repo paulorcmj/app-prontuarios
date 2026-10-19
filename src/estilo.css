@@ -55,7 +55,7 @@ label, .campo { display: flex; flex-direction: column; gap: 4px; font-size: 13px
 .lista ul { margin: 0; padding: 0; list-style: none; }
 .lista li button { width: 100%; text-align: left; border-color: transparent; border-radius: 10px; color: var(--texto); }
 .lista li button.selecionado { background: var(--campo); font-weight: 600; box-shadow: inset 3px 0 0 var(--roxo); }
-.aviso-local { margin: auto 0 0; padding-top: 12px; font-size: 12px; color: var(--texto-suave); }
+.aviso-local { margin: auto 0 0; font-size: 12px; color: var(--texto-suave); }
 .painel { padding: 24px; overflow-y: auto; }
 .vazio { color: var(--texto-suave); }
 
@@ -109,8 +109,40 @@ label, .campo { display: flex; flex-direction: column; gap: 4px; font-size: 13px
 .sessao-corpo { display: flex; flex-direction: column; gap: 10px; padding-bottom: 6px; }
 .rotulo { margin: 0; font-size: 12px; color: var(--texto-suave); }
 .texto { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+
 /* Anotações são só do psicanalista: caixa tracejada para separar do relato. */
 .anotacoes { color: var(--texto-suave); }
 textarea.anotacoes, .anotacoes textarea { border-style: dashed; background: var(--lateral); }
 select { width: 100%; padding: 8px 12px; border: 1px solid var(--borda); border-radius: 10px; background: var(--campo); color: var(--texto); font: inherit; }
 select:focus { outline: none; border-color: var(--roxo); }
+.janela-dados { display: flex; flex-direction: column; gap: 12px; }
+.janela-dados h3 { margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: 20px; font-weight: 400; }
+.janela-dados p { margin: 0; }
+
+/* Perfil no topo da lateral */
+.perfil { position: relative; }
+.perfil-botao { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px; border-color: transparent; border-radius: 14px; text-align: left; }
+.perfil-botao:hover { background: var(--campo); }
+.perfil-botao .seta { flex: none; margin-left: auto; }
+.perfil-nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.perfil-menu { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20; padding: 6px; border: 1px solid var(--borda-forte); border-radius: 12px; background: var(--superficie); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
+.perfil-menu button { width: 100%; text-align: left; border-color: transparent; border-radius: 8px; }
+
+/* Foto do perfil: círculo com borda, ou a inicial do nome quando não há foto */
+.avatar { flex: none; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; overflow: hidden; border: 2px solid var(--roxo); border-radius: 50%; background: var(--roxo-fundo); color: var(--roxo); font-family: Georgia, 'Times New Roman', serif; font-size: 18px; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-grande { width: 72px; height: 72px; font-size: 28px; }
+
+/* Janela de configurações */
+.foto-linha { display: flex; align-items: center; gap: 14px; }
+.botao-arquivo { flex-direction: row; padding: 6px 14px; border: 1px solid var(--borda-forte); border-radius: 999px; font-size: 15px; color: var(--texto); cursor: pointer; }
+.botao-arquivo:hover { background: var(--campo); }
+
+/* Nome grande quebra em mais de uma linha, sem espremer os botões do topo da ficha. */
+.ficha-topo h2 { min-width: 0; overflow-wrap: anywhere; }
+.ficha-topo .acoes { flex: none; }
+button { white-space: nowrap; }
+/* Nomes longos quebram em mais de uma linha na lista, em vez de serem cortados. */
+.lista li button { white-space: normal; overflow-wrap: anywhere; }
+/* O mesmo vale para o título das sessões e das seções recolhíveis. */
+.colapsavel-botao { min-width: 0; white-space: normal; text-align: left; overflow-wrap: anywhere; }

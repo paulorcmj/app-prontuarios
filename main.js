@@ -4,6 +4,7 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
 const banco = require('./banco');
+const { gerarPdfPaciente } = require('./pdf');
 
 function criarJanela() {
   const janela = new BrowserWindow({
@@ -58,6 +59,11 @@ function registrarIpc() {
   ipcMain.handle('valores:excluir', (_e, id) => banco.excluirValor(id));
   ipcMain.handle('valores:atual', (_e, pacienteId) => banco.valorAtual(pacienteId));
   ipcMain.handle('valores:naData', (_e, pacienteId, data) => banco.valorNaData(pacienteId, data));
+  ipcMain.handle('profissional:obter', () => banco.obterProfissional());
+  ipcMain.handle('profissional:salvar', (_e, dados) => banco.salvarProfissional(dados));
+  ipcMain.handle('pdf:paciente', (evento, pacienteId) =>
+    gerarPdfPaciente(pacienteId, BrowserWindow.fromWebContents(evento.sender))
+  );
 }
 
 app.whenReady().then(() => {

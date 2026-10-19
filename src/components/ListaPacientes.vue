@@ -1,12 +1,14 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
+import PerfilLateral from './PerfilLateral.vue';
 
 const props = defineProps({
   situacao: String,
   pacientes: Array,
   aberto: [Number, String],
+  profissional: Object,
 });
-defineEmits(['trocar-aba', 'abrir', 'novo']);
+defineEmits(['trocar-aba', 'abrir', 'novo', 'configuracoes']);
 
 const busca = defineModel('busca');
 
@@ -59,6 +61,7 @@ const ordenados = computed(() => [...props.pacientes].sort(COMPARACOES[ordem.val
 
 <template>
   <aside class="lista">
+    <PerfilLateral :profissional="profissional" @configuracoes="$emit('configuracoes')" />
     <div class="abas">
       <button :class="{ ativa: situacao === 'ativo' }" @click="$emit('trocar-aba', 'ativo')">Prontuários</button>
       <button :class="{ ativa: situacao === 'arquivado' }" @click="$emit('trocar-aba', 'arquivado')">Arquivo</button>
