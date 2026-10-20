@@ -137,7 +137,7 @@ function htmlAnalista(paciente, sessoes, valores, profissional) {
   const situacao =
     paciente.situacao === 'arquivado'
       ? `Arquivado em ${dataBR(paciente.arquivado_em)}`
-      : 'Ativo';
+      : 'Em andamento';
 
   const dados = [
     linha('Nome', paciente.nome_completo),

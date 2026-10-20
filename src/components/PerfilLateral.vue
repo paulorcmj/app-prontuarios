@@ -39,7 +39,7 @@ onBeforeUnmount(() => document.removeEventListener('click', aoClicarFora));
         <template v-else>{{ inicial }}</template>
       </span>
       <span class="perfil-texto">
-        <span class="perfil-nome">{{ profissional.nome || 'Configurar perfil' }}</span>
+        <span class="perfil-nome">{{ profissional.nome || 'Perfil' }}</span>
         <span v-if="crp" class="perfil-crp">{{ crp }}</span>
       </span>
     </button>

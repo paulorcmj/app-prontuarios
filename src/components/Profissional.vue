@@ -82,7 +82,7 @@ async function salvar() {
         <input v-model="dados.nome" />
       </label>
       <label>CRP
-        <input v-model="dados.crp" placeholder="CRP 00/00000" />
+        <input v-model="dados.crp" />
       </label>
       <label>E-mail
         <input v-model="dados.email" type="email" />
