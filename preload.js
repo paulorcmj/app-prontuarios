@@ -34,4 +34,12 @@ contextBridge.exposeInMainWorld('api', {
     paciente: (pacienteId) => ipcRenderer.invoke('pdf:paciente', pacienteId),
     analista: (pacienteId) => ipcRenderer.invoke('pdf:analista', pacienteId),
   },
+  acesso: {
+  estado: () => ipcRenderer.invoke('acesso:estado'),
+  preparar: (senha) => ipcRenderer.invoke('acesso:preparar', senha),
+  confirmar: () => ipcRenderer.invoke('acesso:confirmar'),
+  cancelar: () => ipcRenderer.invoke('acesso:cancelar'),
+  entrar: (senha) => ipcRenderer.invoke('acesso:entrar', senha),
+  recuperar: (chave, novaSenha) => ipcRenderer.invoke('acesso:recuperar', chave, novaSenha),
+},
 });

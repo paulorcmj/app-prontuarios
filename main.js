@@ -5,6 +5,8 @@ const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
 const banco = require('./banco');
 const { gerarPdfPaciente, gerarPdfAnalista } = require('./pdf');
+const seguranca = require('./seguranca');
+const fs = require('fs');
 
 function criarJanela() {
   const janela = new BrowserWindow({
@@ -43,7 +45,7 @@ function criarJanela() {
 }
 
 // Cada canal liga uma chamada da tela a uma função do banco.js.
-function registrarIpc() {
+function registrarIpcBanco() {
   ipcMain.handle('pdf:analista', (evento, pacienteId) =>
     gerarPdfAnalista(pacienteId, BrowserWindow.fromWebContents(evento.sender))
   );
@@ -71,9 +73,79 @@ function registrarIpc() {
   );
 }
 
+// Os canais que usam o banco só são registrados depois que ele abre.
+// Enquanto o app está trancado, a tela só consegue falar com os canais "acesso:".
+let liberado = false;
+
+// Configuração criada na tela de senha, ainda não gravada em disco.
+let pendente = null;
+
+// Se sobrou um banco de antes sem o chaves.json, nenhuma chave nova abre ele.
+// Em vez de apagar, ele é renomeado e o app começa um banco novo.
+function guardarBancoSemChave() {
+  const base = path.join(app.getPath('userData'), 'prontuarios.db');
+  const sufixo = Date.now();
+  for (const parte of ['', '-wal', '-shm']) {
+    if (fs.existsSync(base + parte)) fs.renameSync(base + parte, `${base}${parte}.sem-chave-${sufixo}`);
+  }
+}
+
+function liberarBanco(chaveBanco) {
+  banco.iniciar(chaveBanco);
+  registrarIpcBanco();
+  liberado = true;
+}
+
+function registrarIpcAcesso() {
+  ipcMain.handle('acesso:estado', () => {
+    if (liberado) return 'liberado';
+    return seguranca.existeConfiguracao() ? 'entrar' : 'criar';
+  });
+
+// Primeiro uso, em duas etapas: preparar devolve a chave de recuperação para a tela mostrar
+// e só confirmar grava em disco e abre o banco.
+ipcMain.handle('acesso:preparar', (_e, senha) => {
+  if (liberado || seguranca.existeConfiguracao()) throw new Error('O app já foi configurado');
+  pendente = seguranca.preparar(senha);
+  return pendente.chaveRecuperacao;
+});
+
+ipcMain.handle('acesso:confirmar', () => {
+  if (!pendente) throw new Error('Nenhuma senha em criação');
+  if (seguranca.existeConfiguracao()) throw new Error('O app já foi configurado');
+  guardarBancoSemChave();
+  // O banco abre antes de gravar as chaves: se a abertura falhar, nada fica gravado
+  // e o usuário pode tentar de novo.
+  liberarBanco(pendente.chaveBanco);
+  seguranca.gravar(pendente.conteudo);
+  pendente = null;
+});
+
+ipcMain.handle('acesso:cancelar', () => {
+  pendente = null;
+});
+
+  ipcMain.handle('acesso:entrar', (_e, senha) => {
+    if (liberado) return true;
+    const chaveBanco = seguranca.abrirComSenha(senha);
+    if (!chaveBanco) return false;
+    liberarBanco(chaveBanco);
+    return true;
+  });
+
+  // Esqueceu a senha: a chave de recuperação abre o banco e define uma senha nova.
+  ipcMain.handle('acesso:recuperar', (_e, chaveRecuperacao, novaSenha) => {
+    if (liberado) return true;
+    const chaveBanco = seguranca.abrirComRecuperacao(chaveRecuperacao);
+    if (!chaveBanco) return false;
+    seguranca.trocarSenha(chaveBanco, novaSenha);
+    liberarBanco(chaveBanco);
+    return true;
+  });
+}
+
 app.whenReady().then(() => {
-  banco.iniciar();
-  registrarIpc();
+  registrarIpcAcesso();
   // Sem a barra de menu padrão (File, Edit, View, Window).
   Menu.setApplicationMenu(null);
   criarJanela();

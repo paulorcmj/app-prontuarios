@@ -4,9 +4,6 @@ const path = require('path');
 const { app } = require('electron');
 const Database = require('better-sqlite3-multiple-ciphers');
 
-// Senha fixa de desenvolvimento. Será substituída pela tela de senha.
-const SENHA_DEV = 'senha-de-teste-dev';
-
 const CAMPOS_PACIENTE = [
   'nome_completo', 'cpf', 'data_nascimento', 'cidade', 'queixa_inicial',
   'data_inicio', 'celular', 'contato_emergencia_nome',
@@ -83,10 +80,11 @@ function caminhoDoBanco() {
   return path.join(app.getPath('userData'), 'prontuarios.db');
 }
 
-function abrir(senha) {
+function abrir(chave) {
   const conexao = new Database(caminhoDoBanco());
-  conexao.pragma(`key='${senha}'`);
-  // Com senha errada, a primeira leitura é que falha.
+  // A chave é um texto hexadecimal gerado pelo app (seguranca.js), nunca digitado na tela.
+  conexao.pragma(`key='${chave}'`);
+  // Com chave errada, a primeira leitura é que falha.
   conexao.prepare('SELECT count(*) FROM sqlite_master').get();
   return conexao;
 }
@@ -103,8 +101,8 @@ function migrar(conexao) {
   }
 }
 
-function iniciar() {
-  db = abrir(SENHA_DEV);
+function iniciar(chave) {
+  db = abrir(chave);
   // sem isso o ON DELETE CASCADE não funciona
   db.pragma('foreign_keys = ON');
   migrar(db);
