@@ -10,6 +10,13 @@ const raiz = ref(null);
 
 const inicial = computed(() => props.profissional.nome.trim().charAt(0).toUpperCase() || '?');
 
+// Mostra "CRP" antes do número, mesmo que tenha sido digitado só o número.
+const crp = computed(() => {
+  const texto = props.profissional.crp.trim();
+  if (!texto) return '';
+  return /^crp/i.test(texto) ? texto : `CRP ${texto}`;
+});
+
 // Clicar fora do perfil fecha o menu.
 function aoClicarFora(evento) {
   if (raiz.value && !raiz.value.contains(evento.target)) aberto.value = false;
@@ -31,8 +38,10 @@ onBeforeUnmount(() => document.removeEventListener('click', aoClicarFora));
         <img v-if="profissional.foto" :src="profissional.foto" alt="" />
         <template v-else>{{ inicial }}</template>
       </span>
-      <span class="perfil-nome">{{ profissional.nome || 'Configurar perfil' }}</span>
-      <span class="seta" :class="{ aberta: aberto }" aria-hidden="true"></span>
+      <span class="perfil-texto">
+        <span class="perfil-nome">{{ profissional.nome || 'Configurar perfil' }}</span>
+        <span v-if="crp" class="perfil-crp">{{ crp }}</span>
+      </span>
     </button>
     <div v-if="aberto" class="perfil-menu">
       <button type="button" @click="abrirConfiguracoes">Configurações</button>

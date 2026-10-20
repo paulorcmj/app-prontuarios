@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import ListaPacientes from './components/ListaPacientes.vue';
 import FichaPaciente from './components/FichaPaciente.vue';
 import Confirmacao from './components/Confirmacao.vue';
@@ -15,6 +15,121 @@ const aberto = ref(null);
 const profissional = ref({ nome: '', crp: '', email: '', foto: '' });
 const dadosProfissionalAberto = ref(false);
 
+// ---- Barra lateral ----
+// A largura escolhida pelo usuário fica guardada; se não houver, vale a largura natural.
+// A lateral abre sempre aberta: só a largura é lembrada. Ctrl+0 esquece a largura guardada.
+// Larguras em pixels: o mínimo e a natural. O máximo é simétrico em torno da natural.
+const LARGURA_MINIMA = 249;
+const LARGURA_BASE = 284;
+// Espaço que a ficha precisa para não quebrar; a lateral nunca toma esse espaço.
+const LARGURA_FICHA_MIN = 400;
+const CHAVE_LARGURA = 'largura-lateral';
+
+// A lateral pode crescer tanto quanto pode encolher a partir da largura natural.
+// Em janelas pequenas, o limite também respeita o espaço que a ficha precisa.
+const larguraJanela = ref(window.innerWidth);
+const larguraMaxima = computed(() => {
+  const simetrica = LARGURA_BASE + (LARGURA_BASE - LARGURA_MINIMA);
+  return Math.max(LARGURA_MINIMA, Math.min(simetrica, larguraJanela.value - LARGURA_FICHA_MIN));
+});
+
+function lerLarguraSalva() {
+  try {
+    const numero = Number(localStorage.getItem(CHAVE_LARGURA));
+    return Number.isFinite(numero) && numero > 0 ? numero : null;
+  } catch {
+    return null;
+  }
+}
+
+function guardarLargura() {
+  try {
+    localStorage.setItem(CHAVE_LARGURA, String(larguraEscolhida.value));
+  } catch {
+    // sem armazenamento, a largura só vale até fechar o app
+  }
+}
+
+// Esquece a largura guardada: a lateral volta à largura natural.
+function restaurarLargura() {
+  larguraEscolhida.value = null;
+  try {
+    localStorage.removeItem(CHAVE_LARGURA);
+  } catch {
+    // sem armazenamento, não há o que esquecer
+  }
+}
+
+const larguraEscolhida = ref(lerLarguraSalva());
+const lateralAberta = ref(true);
+// Se a janela encolher, a lateral encolhe junto, sem perder o tamanho escolhido.
+const larguraEfetiva = computed(() =>
+  Math.min(larguraMaxima.value, Math.max(LARGURA_MINIMA, larguraEscolhida.value ?? LARGURA_BASE))
+);
+const colunas = computed(() => `${lateralAberta.value ? larguraEfetiva.value : 0}px minmax(0, 1fr)`);
+
+function aoRedimensionarJanela() {
+  larguraJanela.value = window.innerWidth;
+}
+
+// A lateral começa na borda esquerda da janela, então a largura é a posição do mouse.
+// Um clique na borda, sem arrastar, fecha a lateral.
+function comecarArraste(evento) {
+  esconderDica();
+  const alca = evento.currentTarget;
+  const inicioX = evento.clientX;
+  let moveu = false;
+  alca.setPointerCapture(evento.pointerId);
+  const mover = (e) => {
+    if (Math.abs(e.clientX - inicioX) > 3) moveu = true;
+    if (moveu) {
+      larguraEscolhida.value = Math.min(larguraMaxima.value, Math.max(LARGURA_MINIMA, e.clientX));
+    }
+  };
+  const soltar = () => {
+    alca.removeEventListener('pointermove', mover);
+    alca.removeEventListener('pointerup', soltar);
+    alca.removeEventListener('pointercancel', soltar);
+    if (moveu) guardarLargura();
+    else lateralAberta.value = false;
+  };
+  alca.addEventListener('pointermove', mover);
+  alca.addEventListener('pointerup', soltar);
+  alca.addEventListener('pointercancel', soltar);
+}
+
+// Dica ao passar o mouse na borda, depois de uma pequena pausa.
+const dicaVisivel = ref(false);
+const dicaY = ref(0);
+let temporizadorDica = null;
+
+function mostrarDica(evento) {
+  const y = evento.clientY;
+  clearTimeout(temporizadorDica);
+  temporizadorDica = setTimeout(() => {
+    dicaY.value = Math.max(8, y - 28);
+    dicaVisivel.value = true;
+  }, 350);
+}
+
+function esconderDica() {
+  clearTimeout(temporizadorDica);
+  dicaVisivel.value = false;
+}
+
+// Ctrl+B abre e fecha a lateral (como no VS Code); Ctrl+0 volta à largura natural.
+function aoPressionarTecla(evento) {
+  if (!evento.ctrlKey || evento.shiftKey || evento.altKey) return;
+  if (evento.key.toLowerCase() === 'b') {
+    evento.preventDefault();
+    lateralAberta.value = !lateralAberta.value;
+  } else if (evento.key === '0') {
+    evento.preventDefault();
+    restaurarLargura();
+  }
+}
+
+// ---- Pacientes ----
 // A ficha avisa quando há alterações que ainda não foram salvas.
 const alteracaoPendente = ref(false);
 // Navegação que ficou esperando a resposta do aviso de saída.
@@ -46,6 +161,13 @@ onMounted(() => {
   carregarLista();
   carregarProfissional();
   window.addEventListener('beforeunload', avisarAoFechar);
+  window.addEventListener('keydown', aoPressionarTecla);
+  window.addEventListener('resize', aoRedimensionarJanela);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', aoPressionarTecla);
+  window.removeEventListener('resize', aoRedimensionarJanela);
 });
 
 // Faz a navegação, ou pede confirmação antes se houver alterações sem salvar.
@@ -95,8 +217,10 @@ async function aoMudarSituacao() {
 </script>
 
 <template>
-  <div class="app">
+  <div class="app" :style="{ gridTemplateColumns: colunas }">
+    <!-- A lateral só é escondida (v-show), sem desmontar: busca, ordem e perfil continuam como estavam. -->
     <ListaPacientes
+      v-show="lateralAberta"
       v-model:busca="busca"
       :situacao="situacao"
       :pacientes="pacientes"
@@ -118,6 +242,34 @@ async function aoMudarSituacao() {
       />
       <p v-else class="vazio">Selecione um paciente ou cadastre um novo.</p>
     </main>
+
+    <!-- Borda arrastável da lateral, sem indicador visual: só o cursor muda e aparece uma dica. -->
+    <div
+      v-show="lateralAberta"
+      class="alca"
+      :style="{ left: larguraEfetiva - 4 + 'px' }"
+      @pointerdown="comecarArraste"
+      @pointerenter="mostrarDica"
+      @pointerleave="esconderDica"
+    ></div>
+    <div v-if="dicaVisivel && lateralAberta" class="dica" :style="{ left: larguraEfetiva + 14 + 'px', top: dicaY + 'px' }">
+      <div class="dica-linha"><span>Ocultar barra lateral</span><kbd>Ctrl+B</kbd></div>
+      <div class="dica-sub">Arraste para redimensionar</div>
+    </div>
+    <!-- Abinha que se projeta para fora da lateral; fechada, fica colada na borda da janela. -->
+    <button
+      type="button"
+      class="aba-lateral"
+      :class="{ fechada: !lateralAberta }"
+      :style="{ left: lateralAberta ? larguraEfetiva - 1 + 'px' : '0px' }"
+      :title="lateralAberta ? 'Ocultar barra lateral (Ctrl+B)' : 'Mostrar barra lateral (Ctrl+B)'"
+      :aria-label="lateralAberta ? 'Ocultar barra lateral' : 'Mostrar barra lateral'"
+      @click="lateralAberta = !lateralAberta"
+    >
+      <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M7.5 2.5L4 6l3.5 3.5" />
+      </svg>
+    </button>
 
     <Confirmacao
       v-if="saidaPendente"

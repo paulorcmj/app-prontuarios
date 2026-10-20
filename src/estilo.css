@@ -21,10 +21,11 @@
 html, body, #app { height: 100%; margin: 0; }
 body { font-family: 'Segoe UI', system-ui, sans-serif; font-size: 15px; color: var(--texto); background: var(--fundo); }
 
-/* Barras de rolagem no mesmo tom do tema */
+/* Barras de rolagem no mesmo tom do tema, sem as setinhas das pontas */
 * { scrollbar-width: thin; scrollbar-color: var(--borda-forte) transparent; }
 ::-webkit-scrollbar { width: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--borda-forte); border-radius: 10px; }
+::-webkit-scrollbar-button { display: none; }
 
 button, input, textarea { font: inherit; color: inherit; }
 /* Botões não quebram o texto em duas linhas; onde o texto é longo (lista, títulos), a regra é desfeita. */
@@ -43,38 +44,54 @@ input[type='search']::-webkit-search-cancel-button { filter: invert(0.7); }
 textarea { min-height: 4.5em; resize: none; field-sizing: content; }
 /* Campos travados continuam legíveis: só ficam sem o foco roxo. */
 input:disabled, textarea:disabled { color: var(--texto); -webkit-text-fill-color: var(--texto); opacity: 1; }
-select { width: 100%; padding: 8px 12px; border: 1px solid var(--borda); border-radius: 10px; background: var(--campo); color: var(--texto); font: inherit; }
-select:focus { outline: none; border-color: var(--roxo); }
 label, .campo { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--texto-suave); }
 
-/* A coluna da ficha acompanha a largura do conteúdo, para a barra de rolagem
-   ficar junto do fim dele e não lá na borda da janela. */
-.app { display: grid; grid-template-columns: 280px minmax(0, 830px); grid-template-rows: 1fr; height: 100%; }
-.lista { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-right: 1px solid var(--borda); background: var(--lateral); overflow-y: auto; }
+/* Estrutura do app: a lateral (largura definida pelo App.vue) e a área da ficha, que ocupa o resto
+   da janela, com a barra de rolagem no canto. */
+.app { position: relative; display: grid; grid-template-columns: 320px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: 100%; }
+.lista { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; min-width: 0; padding: 16px 16px 0; overflow: hidden; border-right: 1px solid var(--borda); background: var(--lateral); }
+.painel { grid-column: 2; grid-row: 1; padding: 24px; overflow-y: auto; }
+.vazio { color: var(--texto-suave); }
+
+/* Lateral: o topo (perfil até "Novo paciente") fica parado; só a lista rola. */
+.lista-topo { display: flex; flex: none; flex-direction: column; gap: 10px; }
+.lista-rolagem { flex: 1; min-height: 0; margin-top: 10px; padding-bottom: 16px; overflow-y: auto; }
+/* As abas ocupam o que o texto pede e dividem o espaço que sobrar; se faltar, o texto é cortado. */
 .abas { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--borda); border-radius: 12px; background: #110e18; }
-.abas button { flex: 1; border-color: transparent; color: var(--texto-suave); }
+.abas button { flex: 1 1 auto; min-width: 0; padding-inline: 8px; overflow: hidden; text-overflow: ellipsis; border-color: transparent; color: var(--texto-suave); }
 .abas button:hover { background: transparent; color: var(--texto); }
 .abas button.ativa { background: var(--roxo-fundo); color: #fff; font-weight: 600; }
 .lista ul { margin: 0; padding: 0; list-style: none; }
 /* Nomes longos quebram em mais de uma linha na lista, em vez de serem cortados. */
 .lista li button { width: 100%; text-align: left; border-color: transparent; border-radius: 10px; color: var(--texto); white-space: normal; overflow-wrap: anywhere; }
 .lista li button.selecionado { background: var(--campo); font-weight: 600; box-shadow: inset 3px 0 0 var(--roxo); }
-.aviso-local { margin: auto 0 0; font-size: 12px; color: var(--texto-suave); }
-.painel { padding: 24px; overflow-y: auto; }
-.vazio { color: var(--texto-suave); }
 
-.acoes { display: flex; gap: 8px; }
+/* Busca com o botão de ordenar ao lado e o menu de ordenação */
+.busca-linha { position: relative; display: flex; gap: 8px; }
+.busca-linha input { flex: 1; min-width: 0; }
+.botao-ordenar { flex: none; display: flex; align-items: center; justify-content: center; width: 38px; padding: 0; color: var(--texto-suave); }
+.botao-ordenar:hover, .botao-ordenar[aria-expanded='true'] { background: var(--campo); color: var(--texto); }
+.botao-ordenar svg { display: block; }
+
+/* Menus suspensos (perfil e ordenação) */
+.perfil-menu, .ordem-menu { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20; padding: 6px; border: 1px solid var(--borda-forte); border-radius: 12px; background: var(--superficie); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
+.perfil-menu button, .ordem-menu button { width: 100%; text-align: left; border-color: transparent; border-radius: 8px; }
+.ordem-menu button { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ordem-menu button.escolhida { color: var(--roxo); font-weight: 600; }
+
+/* Grupos de botões quebram de linha quando falta espaço, em vez de saírem da caixa. */
+.acoes { display: flex; flex-wrap: wrap; gap: 8px; }
 .acoes button { border-radius: 999px; }
 .erro { margin: 0; color: var(--perigo); }
 
-.fundo { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(8, 6, 14, 0.7); }
+.fundo { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(8, 6, 14, 0.7); }
 .janela { width: 380px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); padding: 22px; overflow-y: auto; border: 1px solid var(--borda-forte); border-radius: 14px; background: var(--superficie); }
 .janela .acoes { justify-content: flex-end; }
 
 /* Seção que recolhe. O cabeçalho quebra em duas linhas quando falta espaço
    (título em cima, busca e botão embaixo); título longo quebra entre as palavras. */
 .colapsavel-cabecalho { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
-.colapsavel-botao { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 4px 0; border: 0; background: transparent; font-weight: 600; font-size: 1.05em; text-align: left; white-space: normal; overflow-wrap: break-word; }
+.colapsavel-botao { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; min-width: 0; padding: 4px 0; border: 0; background: transparent; font-weight: 600; font-size: 1.05em; text-align: left; white-space: normal; overflow-wrap: break-word; }
 .colapsavel-botao:hover { background: transparent; }
 .colapsavel-acoes { display: flex; align-items: center; justify-content: flex-end; flex: 1 1 340px; gap: 8px; min-width: 0; }
 .colapsavel-acoes input { flex: 1 1 140px; width: auto; min-width: 0; max-width: 320px; }
@@ -83,17 +100,27 @@ label, .campo { display: flex; flex-direction: column; gap: 4px; font-size: 13px
 .seta.aberta { transform: rotate(45deg); }
 .contagem { margin-left: 6px; font-size: 13px; font-weight: 400; color: var(--texto-suave); }
 
-/* Ficha. O título ocupa a primeira linha e os botões vão para baixo dele
-   quando não cabem lado a lado; o nome só quebra entre palavras. */
-.ficha { display: flex; flex-direction: column; gap: 16px; max-width: 760px; }
+/* Ficha, centralizada na área da ficha. O título ocupa a primeira linha e os botões vão para
+   baixo dele quando não cabem lado a lado; o nome só quebra entre palavras. */
+.ficha { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 760px; margin-inline: auto; }
 .ficha-topo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .ficha-topo h2 { flex: 1 1 260px; min-width: 0; margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: 30px; font-weight: 400; overflow-wrap: break-word; }
-.ficha-topo .acoes { flex: none; }
+.ficha-topo .acoes { flex: 0 1 auto; }
+/* No topo da ficha, os botões são um pouco mais compactos para caberem numa linha só
+   na janela mínima, mesmo com a lateral no tamanho máximo. */
+.ficha-topo .acoes { gap: 6px; }
+.ficha-topo .acoes > button,
+.ficha-topo .acoes .menu-pdf > button { padding-inline: 9px; }
 .ficha .colapsavel { padding: 20px 24px; border: 1px solid var(--borda); border-radius: 18px; background: var(--superficie); }
 /* Duas colunas quando há espaço (cada uma com pelo menos 300 px); uma só quando a janela é estreita. */
-.grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px 16px; }
+.grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 12px 16px; }
 .grade .largo { grid-column: 1 / -1; }
 .ficha fieldset { display: contents; min-width: 0; margin: 0; padding: 0; border: 0; }
+
+/* Menu do botão "Gerar PDF" */
+.menu-pdf { position: relative; }
+.pdf-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; min-width: 190px; padding: 6px; border: 1px solid var(--borda-forte); border-radius: 12px; background: var(--superficie); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
+.pdf-menu button { display: block; width: 100%; text-align: left; border-color: transparent; border-radius: 8px; }
 
 /* Valor e "a partir de", lado a lado, com o botão do histórico dentro do campo.
    A lista do histórico se ancora no campo (e não no botão), para abrir para a direita
@@ -106,8 +133,8 @@ label, .campo { display: flex; flex-direction: column; gap: 4px; font-size: 13px
 .historico li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; }
 .historico button { padding: 2px 8px; font-size: 12px; }
 
-/* Sessões */
-.bloco { max-width: 760px; margin-top: 24px; padding: 20px 24px; border: 1px solid var(--borda); border-radius: 18px; background: var(--superficie); }
+/* Sessões (também centralizadas, na mesma largura da ficha) */
+.bloco { width: 100%; max-width: 760px; margin: 24px auto 0; padding: 20px 24px; border: 1px solid var(--borda); border-radius: 18px; background: var(--superficie); }
 .form-sessao { display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; padding: 14px; border: 1px solid var(--roxo); border-radius: 14px; background: var(--campo); }
 .sessoes { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .sessoes li { scroll-margin: 16px; }
@@ -122,19 +149,30 @@ label, .campo { display: flex; flex-direction: column; gap: 4px; font-size: 13px
 .anotacoes { color: var(--texto-suave); }
 textarea.anotacoes, .anotacoes textarea { border-style: dashed; background: var(--lateral); }
 
-/* Perfil no topo da lateral */
+/* Perfil no topo da lateral: foto, nome e, embaixo dele, o CRP em letra pequena e apagada. */
 .perfil { position: relative; }
 .perfil-botao { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px; border-color: transparent; border-radius: 14px; text-align: left; }
 .perfil-botao:hover { background: var(--campo); }
-.perfil-botao .seta { flex: none; margin-left: auto; }
+.perfil-texto { display: flex; flex-direction: column; min-width: 0; }
 .perfil-nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.perfil-menu { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20; padding: 6px; border: 1px solid var(--borda-forte); border-radius: 12px; background: var(--superficie); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
-.perfil-menu button { width: 100%; text-align: left; border-color: transparent; border-radius: 8px; }
+.perfil-crp { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 400; color: var(--texto-suave); opacity: 0.75; }
 
 /* Foto do perfil: círculo com borda, ou a inicial do nome quando não há foto */
 .avatar { flex: none; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; overflow: hidden; border: 2px solid var(--roxo); border-radius: 50%; background: var(--roxo-fundo); color: var(--roxo); font-family: Georgia, 'Times New Roman', serif; font-size: 18px; }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
 .avatar-grande { width: 72px; height: 72px; font-size: 28px; }
+
+/* Barra lateral: borda arrastável sem indicador visual (só o cursor), dica ao passar o mouse
+   e abinha roxa que se projeta para fora, no topo, alinhada ao centro do perfil (47 px). */
+.alca { position: absolute; top: 0; bottom: 0; z-index: 5; width: 8px; cursor: col-resize; touch-action: none; user-select: none; }
+.aba-lateral { position: absolute; top: 47px; z-index: 6; display: flex; align-items: center; justify-content: center; width: 16px; height: 40px; padding: 0; transform: translateY(-50%); border: 1px solid color-mix(in srgb, var(--roxo) 55%, transparent); border-left: 0; border-radius: 0 10px 10px 0; background: var(--roxo-fundo); color: var(--roxo); box-shadow: 3px 0 10px rgba(0, 0, 0, 0.35); }
+.aba-lateral:hover { background: var(--roxo); border-color: var(--roxo); color: var(--sobre-roxo); }
+.aba-lateral svg { display: block; transition: transform 0.15s; }
+.aba-lateral.fechada svg { transform: rotate(180deg); }
+.dica { position: fixed; z-index: 30; padding: 8px 12px; border: 1px solid var(--borda-forte); border-radius: 10px; background: var(--superficie); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); font-size: 13px; white-space: nowrap; pointer-events: none; }
+.dica-linha { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; color: var(--texto); font-weight: 600; }
+.dica-linha kbd { font: inherit; font-weight: 400; color: var(--texto-suave); }
+.dica-sub { margin-top: 2px; color: var(--texto-suave); }
 
 /* Janela de configurações */
 .janela-dados { display: flex; flex-direction: column; gap: 12px; }

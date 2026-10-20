@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import Confirmacao from './Confirmacao.vue';
 import Colapsavel from './Colapsavel.vue';
 import CampoValor from './CampoValor.vue';
@@ -24,6 +24,14 @@ const erro = ref('');
 const confirmandoExclusao = ref(false);
 const editando = ref(novo);
 const dadosAbertos = ref(true);
+
+// Menu "Gerar PDF": fecha ao escolher uma opção e ao clicar fora.
+const menuPdfAberto = ref(false);
+const raizPdf = ref(null);
+
+function aoClicarFora(evento) {
+  if (raizPdf.value && !raizPdf.value.contains(evento.target)) menuPdfAberto.value = false;
+}
 
 // Histórico de valores (o mais recente primeiro) e os dois campos de valor da ficha.
 // O valor atual é a primeira linha do histórico.
@@ -72,7 +80,12 @@ async function carregarFicha() {
 }
 
 onMounted(() => {
+  document.addEventListener('click', aoClicarFora);
   if (!novo) executar(carregarFicha);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', aoClicarFora);
 });
 
 async function executar(acao) {
@@ -101,6 +114,7 @@ function conferirValor() {
 }
 
 function iniciarEdicao() {
+  menuPdfAberto.value = false;
   dadosAbertos.value = true;
   editando.value = true;
 }
@@ -164,10 +178,17 @@ function desarquivar() {
 }
 
 // O PDF é montado no processo principal, com o que está salvo no banco.
-function gerarPdf() {
+function gerarPdfPaciente() {
+  menuPdfAberto.value = false;
   executar(async () => {
     await window.api.pdf.paciente(props.pacienteId);
   });
+}
+
+// O PDF do analista ainda não existe.
+function gerarPdfAnalista() {
+  menuPdfAberto.value = false;
+  erro.value = 'O PDF do analista ainda não está disponível';
 }
 
 function excluir() {
@@ -192,7 +213,13 @@ function excluir() {
         </template>
         <template v-else key="leitura">
           <button type="button" class="principal" @click="iniciarEdicao">Editar</button>
-          <button type="button" @click="gerarPdf">Gerar PDF</button>
+          <div ref="raizPdf" class="menu-pdf">
+            <button type="button" aria-haspopup="menu" :aria-expanded="menuPdfAberto" @click="menuPdfAberto = !menuPdfAberto">Gerar PDF</button>
+            <div v-if="menuPdfAberto" class="pdf-menu">
+              <button type="button" @click="gerarPdfPaciente">PDF do paciente</button>
+              <button type="button" @click="gerarPdfAnalista">PDF do analista</button>
+            </div>
+          </div>
           <button v-if="situacao === 'ativo'" type="button" @click="arquivar">Arquivar</button>
           <button v-else type="button" @click="desarquivar">Desarquivar</button>
           <button type="button" class="perigo" @click="confirmandoExclusao = true">Excluir</button>
