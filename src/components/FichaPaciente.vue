@@ -177,7 +177,7 @@ function desarquivar() {
   });
 }
 
-// O PDF é montado no processo principal, com o que está salvo no banco.
+// Os PDFs são montados no processo principal, com o que está salvo no banco.
 function gerarPdfPaciente() {
   menuPdfAberto.value = false;
   executar(async () => {
@@ -185,10 +185,11 @@ function gerarPdfPaciente() {
   });
 }
 
-// O PDF do analista ainda não existe.
 function gerarPdfAnalista() {
   menuPdfAberto.value = false;
-  erro.value = 'O PDF do analista ainda não está disponível';
+  executar(async () => {
+    await window.api.pdf.analista(props.pacienteId);
+  });
 }
 
 function excluir() {

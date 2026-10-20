@@ -1,13 +1,12 @@
-// Gera o PDF do paciente com a impressão do próprio Electron.
-// O PDF leva só os dados de identificação e o relato das sessões:
-// anotações, adendos, valor, queixa e contato de emergência ficam de fora.
+// Gera os PDFs do prontuário com a impressão do próprio Electron.
+// O PDF do paciente leva só a identificação e o relato das sessões; o do analista
+// leva tudo o que está no prontuário, inclusive adendos e anotações.
 
 const fs = require('fs');
-const path = require('path');
-const { app, BrowserWindow, dialog } = require('electron');
+const { BrowserWindow, dialog } = require('electron');
 const banco = require('./banco');
 
-// Nome, CRP e e-mail vêm da tela "Meus dados" (guardados no banco).
+// Nome, CRP e e-mail vêm da tela de configurações (guardados no banco).
 function lerProfissional() {
   const profissional = banco.obterProfissional();
   if (!profissional.nome.trim()) {
@@ -30,16 +29,82 @@ function dataBR(data) {
   return data ? data.slice(0, 10).split('-').reverse().join('/') : '';
 }
 
-function montarHtml(paciente, sessoes, profissional) {
+// AAAA-MM-DD HH:MM vira DD/MM/AAAA às HH:MM.
+function dataHoraBR(data) {
+  return data ? `${dataBR(data)} às ${data.slice(11, 16)}` : '';
+}
+
+// Escreve "CRP" antes do número, sem repetir se já foi digitado no cadastro.
+function formatarCrp(crp) {
+  const texto = String(crp).trim();
+  return /^crp\b/i.test(texto) ? texto : `CRP ${texto}`;
+}
+
+// O banco guarda o valor em centavos.
+function formatarValor(centavos) {
+  return (centavos / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+// Linha da tabela de dados; campo vazio aparece como traço.
+function linha(rotulo, valor) {
+  return `<tr><th>${rotulo}</th><td>${esc(valor) || '—'}</td></tr>`;
+}
+
+const ESTILO = `
+  @page { size: A4; margin: 20mm 20mm 22mm; }
+  body { font-family: Georgia, 'Times New Roman', serif; font-size: 12pt; line-height: 1.45; color: #111; }
+  .cabecalho { margin-bottom: 22px; padding-bottom: 10px; border-bottom: 1px solid #999; }
+  .cabecalho .nome { font-size: 13pt; font-weight: bold; }
+  .cabecalho .contato { font-size: 11pt; }
+  .cabecalho p { margin: 0; }
+  h1 { margin: 0 0 2px; font-size: 18pt; }
+  .emissao { margin: 0 0 18px; padding-bottom: 10px; border-bottom: 1px solid #ccc; font-size: 10.5pt; color: #555; }
+  table { margin-bottom: 26px; border-collapse: collapse; }
+  th { padding: 2px 18px 2px 0; text-align: left; font-weight: normal; vertical-align: top; color: #555; }
+  h2 { margin: 0 0 12px; padding: 10px 0 4px; border-top: 1px solid #999; border-bottom: 1px solid #ccc; font-size: 13pt; }
+  .campo { margin-bottom: 14px; }
+  .rotulo { margin: 0 0 2px; font-size: 10.5pt; color: #555; }
+  .sessao { margin-bottom: 14px; }
+  .sessao + .sessao { padding-top: 14px; border-top: 1px solid #ccc; }
+  h3 { margin: 0 0 4px; font-size: 12pt; break-after: avoid; }
+  p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .campo p, .sessao p { text-align: justify; hyphens: auto; }
+  .sessao .rotulo { margin-top: 8px; text-align: left; }
+`;
+
+// Cabeçalho, título e data de emissão, iguais nos dois PDFs.
+function topoHtml(profissional, titulo) {
+  return `
+  <div class="cabecalho">
+    <p class="nome">${esc(profissional.nome)}</p>
+    ${profissional.crp ? `<p class="contato">${esc(formatarCrp(profissional.crp))}</p>` : ''}
+    ${profissional.email ? `<p class="contato">${esc(profissional.email)}</p>` : ''}
+  </div>
+  <h1>${titulo}</h1>
+  <p class="emissao">Emitido em ${new Date().toLocaleDateString('pt-BR')}</p>`;
+}
+
+function paginaHtml(corpo) {
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<style>${ESTILO}</style>
+</head>
+<body>
+${corpo}
+</body>
+</html>`;
+}
+
+function htmlPaciente(paciente, sessoes, profissional) {
   const dados = [
-    ['Nome', paciente.nome_completo],
-    ['CPF', paciente.cpf],
-    ['Data de nascimento', dataBR(paciente.data_nascimento)],
-    ['Cidade e estado', paciente.cidade],
-    ['Início do atendimento', dataBR(paciente.data_inicio)],
-  ]
-    .map(([rotulo, valor]) => `<tr><th>${rotulo}</th><td>${esc(valor) || '—'}</td></tr>`)
-    .join('');
+    linha('Nome', paciente.nome_completo),
+    linha('CPF', paciente.cpf),
+    linha('Data de nascimento', dataBR(paciente.data_nascimento)),
+    linha('Cidade e estado', paciente.cidade),
+    linha('Início do atendimento', dataBR(paciente.data_inicio)),
+  ].join('');
 
   const blocos = sessoes
     .map(
@@ -51,53 +116,76 @@ function montarHtml(paciente, sessoes, profissional) {
     )
     .join('');
 
-  return `<!doctype html>
-<html lang="pt-BR">
-<head>
-<meta charset="utf-8">
-<style>
-  @page { size: A4; margin: 20mm 20mm 22mm; }
-  body { font-family: Georgia, 'Times New Roman', serif; font-size: 12pt; line-height: 1.45; color: #111; }
-  .cabecalho { margin-bottom: 22px; padding-bottom: 10px; border-bottom: 1px solid #999; }
-  .cabecalho .nome { font-size: 14pt; font-weight: bold; }
-  .cabecalho p { margin: 0; }
-  h1 { margin: 0 0 2px; font-size: 18pt; }
-  .emissao { margin: 0 0 18px; font-size: 10.5pt; color: #555; }
-  table { margin-bottom: 26px; border-collapse: collapse; }
-  th { padding: 2px 18px 2px 0; text-align: left; font-weight: normal; color: #555; }
-  h2 { margin: 0 0 12px; padding-bottom: 4px; border-bottom: 1px solid #ccc; font-size: 13pt; }
-  .sessao { margin-bottom: 14px; }
-  h3 { margin: 0 0 4px; font-size: 12pt; break-after: avoid; }
-  p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-</style>
-</head>
-<body>
-  <div class="cabecalho">
-    <p class="nome">${esc(profissional.nome)}</p>
-    ${profissional.crp ? `<p>${esc(profissional.crp)}</p>` : ''}
-    ${profissional.email ? `<p>${esc(profissional.email)}</p>` : ''}
-  </div>
-  <h1>Prontuário</h1>
-  <p class="emissao">Emitido em ${new Date().toLocaleDateString('pt-BR')}</p>
+  return paginaHtml(`
+  ${topoHtml(profissional, 'Prontuário de paciente')}
   <table>${dados}</table>
   <h2>Sessões</h2>
-  ${blocos || '<p>Nenhuma sessão registrada.</p>'}
-</body>
-</html>`;
+  ${blocos || '<p>Nenhuma sessão registrada.</p>'}`);
 }
 
-// Pergunta onde salvar e gera o PDF a partir do que está no banco.
-// Devolve o caminho do arquivo, ou null se o usuário cancelar.
-async function gerarPdfPaciente(pacienteId, janelaPai) {
-  const paciente = banco.obterPaciente(pacienteId);
-  if (!paciente) throw new Error('Paciente não encontrado');
-  const profissional = lerProfissional();
-  const sessoes = banco.listarSessoes(pacienteId, '');
+// Texto longo da ficha (queixa, adendos, anotações do caso) com o rótulo acima.
+function campoTexto(rotulo, texto) {
+  return `
+  <div class="campo">
+    <p class="rotulo">${rotulo}</p>
+    <p>${esc(texto) || '—'}</p>
+  </div>`;
+}
 
-  const nomeLimpo = paciente.nome_completo.replace(/[\\/:*?"<>|]/g, '').trim();
+function htmlAnalista(paciente, sessoes, valores, profissional) {
+  const atual = valores[0];
+  const situacao =
+    paciente.situacao === 'arquivado'
+      ? `Arquivado em ${dataBR(paciente.arquivado_em)}`
+      : 'Ativo';
+
+  const dados = [
+    linha('Nome', paciente.nome_completo),
+    linha('CPF', paciente.cpf),
+    linha('Data de nascimento', dataBR(paciente.data_nascimento)),
+    linha('Cidade e estado', paciente.cidade),
+    linha('Início do atendimento', dataBR(paciente.data_inicio)),
+    linha('Celular', paciente.celular),
+    linha('Contato de emergência (nome)', paciente.contato_emergencia_nome),
+    linha('Contato de emergência (número)', paciente.contato_emergencia_telefone),
+    linha('Valor da sessão', atual ? `${formatarValor(atual.valor)} (a partir de ${dataBR(atual.a_partir_de)})` : ''),
+    linha('Situação', situacao),
+  ].join('');
+
+  const historico = valores
+    .map((v) => linha(`A partir de ${dataBR(v.a_partir_de)}`, formatarValor(v.valor)))
+    .join('');
+
+  const blocos = sessoes
+    .map(
+      (s) => `
+      <section class="sessao">
+        <h3>${esc(dataHoraBR(s.data_hora))} — ${esc(s.titulo)}</h3>
+        ${s.relato ? `<p class="rotulo">Relato</p><p>${esc(s.relato)}</p>` : ''}
+        ${s.anotacoes ? `<p class="rotulo">Anotações</p><p>${esc(s.anotacoes)}</p>` : ''}
+      </section>`
+    )
+    .join('');
+
+  return paginaHtml(`
+  ${topoHtml(profissional, 'Prontuário completo')}
+  <table>${dados}</table>
+  ${campoTexto('Queixa inicial', paciente.queixa_inicial)}
+  ${campoTexto('Adendos', paciente.adendos)}
+  ${campoTexto('Anotações do caso', paciente.anotacoes_caso)}
+  <h2>Histórico de valores</h2>
+  ${historico ? `<table>${historico}</table>` : '<p>Nenhum valor registrado.</p>'}
+  <h2>Sessões</h2>
+  ${blocos || '<p>Nenhuma sessão registrada.</p>'}`);
+}
+
+// Pergunta onde salvar e imprime o HTML em PDF.
+// Só o nome do arquivo é sugerido; a pasta inicial fica por conta do Windows.
+// Devolve o caminho do arquivo, ou null se o usuário cancelar.
+async function salvarPdf(janelaPai, nomeArquivo, html) {
   const escolha = await dialog.showSaveDialog(janelaPai, {
     title: 'Salvar prontuário em PDF',
-    defaultPath: path.join(app.getPath('documents'), `Prontuário - ${nomeLimpo}.pdf`),
+    defaultPath: nomeArquivo,
     filters: [{ name: 'PDF', extensions: ['pdf'] }],
   });
   if (escolha.canceled) return null;
@@ -105,7 +193,6 @@ async function gerarPdfPaciente(pacienteId, janelaPai) {
   // Janela escondida só para imprimir: sem JavaScript e isolada.
   const janela = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false } });
   try {
-    const html = montarHtml(paciente, sessoes, profissional);
     await janela.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
     const pdf = await janela.webContents.printToPDF({
       preferCSSPageSize: true,
@@ -122,4 +209,29 @@ async function gerarPdfPaciente(pacienteId, janelaPai) {
   return escolha.filePath;
 }
 
-module.exports = { gerarPdfPaciente };
+// Os dois PDFs são montados com o que está salvo no banco.
+function carregarPaciente(pacienteId) {
+  const paciente = banco.obterPaciente(pacienteId);
+  if (!paciente) throw new Error('Paciente não encontrado');
+  const nomeLimpo = paciente.nome_completo.replace(/[\\/:*?"<>|]/g, '').trim();
+  return { paciente, nomeLimpo };
+}
+
+async function gerarPdfPaciente(pacienteId, janelaPai) {
+  const { paciente, nomeLimpo } = carregarPaciente(pacienteId);
+  const profissional = lerProfissional();
+  const sessoes = banco.listarSessoes(pacienteId, '');
+  const html = htmlPaciente(paciente, sessoes, profissional);
+  return salvarPdf(janelaPai, `Prontuário - ${nomeLimpo}.pdf`, html);
+}
+
+async function gerarPdfAnalista(pacienteId, janelaPai) {
+  const { paciente, nomeLimpo } = carregarPaciente(pacienteId);
+  const profissional = lerProfissional();
+  const sessoes = banco.listarSessoes(pacienteId, '');
+  const valores = banco.listarValores(pacienteId);
+  const html = htmlAnalista(paciente, sessoes, valores, profissional);
+  return salvarPdf(janelaPai, `Prontuário completo - ${nomeLimpo}.pdf`, html);
+}
+
+module.exports = { gerarPdfPaciente, gerarPdfAnalista };

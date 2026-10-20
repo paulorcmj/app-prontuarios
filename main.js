@@ -4,7 +4,7 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
 const banco = require('./banco');
-const { gerarPdfPaciente } = require('./pdf');
+const { gerarPdfPaciente, gerarPdfAnalista } = require('./pdf');
 
 function criarJanela() {
   const janela = new BrowserWindow({
@@ -44,6 +44,9 @@ function criarJanela() {
 
 // Cada canal liga uma chamada da tela a uma função do banco.js.
 function registrarIpc() {
+  ipcMain.handle('pdf:analista', (evento, pacienteId) =>
+    gerarPdfAnalista(pacienteId, BrowserWindow.fromWebContents(evento.sender))
+  );
   ipcMain.handle('pacientes:criar', (_e, dados) => banco.criarPaciente(dados));
   ipcMain.handle('pacientes:atualizar', (_e, id, dados) => banco.atualizarPaciente(id, dados));
   ipcMain.handle('pacientes:listar', (_e, situacao, busca) => banco.listarPacientes(situacao, busca));
