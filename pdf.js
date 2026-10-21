@@ -1,6 +1,7 @@
 // Gera os PDFs do prontuário com a impressão do próprio Electron.
 // O PDF do paciente leva só a identificação e o relato das sessões; o do analista
 // leva tudo o que está no prontuário, inclusive adendos e anotações.
+// Se o paciente for menor de idade, os dois levam também os dados do responsável.
 
 const fs = require('fs');
 const { BrowserWindow, dialog } = require('electron');
@@ -97,12 +98,30 @@ ${corpo}
 </html>`;
 }
 
-function htmlPaciente(paciente, sessoes, profissional) {
+// Bloco do responsável: só aparece se o paciente estiver marcado como menor de idade
+// e tiver responsável cadastrado. No PDF do analista entra também a situação do termo assinado.
+function responsavelHtml(paciente, responsavel, comTermo) {
+  if (!paciente.menor_de_idade || !responsavel) return '';
+  const linhas = [
+    linha('Nome', responsavel.nome_completo),
+    linha('Data de nascimento', dataBR(responsavel.data_nascimento)),
+    linha('CPF', responsavel.cpf),
+    linha('Endereço', responsavel.endereco),
+    linha('Cidade/Estado', responsavel.cidade_estado),
+  ];
+  if (comTermo) {
+    const termo = responsavel.termo_nome ? `Anexado em ${dataBR(responsavel.termo_anexado_em)}` : 'Não anexado';
+    linhas.push(linha('Termo de autorização', termo));
+  }
+  return `<h2>Responsável</h2><table>${linhas.join('')}</table>`;
+}
+
+function htmlPaciente(paciente, sessoes, responsavel, profissional) {
   const dados = [
     linha('Nome', paciente.nome_completo),
     linha('CPF', paciente.cpf),
     linha('Data de nascimento', dataBR(paciente.data_nascimento)),
-    linha('Cidade e estado', paciente.cidade),
+    linha('Cidade/Estado', paciente.cidade_estado),
     linha('Início do atendimento', dataBR(paciente.data_inicio)),
   ].join('');
 
@@ -119,6 +138,7 @@ function htmlPaciente(paciente, sessoes, profissional) {
   return paginaHtml(`
   ${topoHtml(profissional, 'Prontuário de paciente')}
   <table>${dados}</table>
+  ${responsavelHtml(paciente, responsavel, false)}
   <h2>Sessões</h2>
   ${blocos || '<p>Nenhuma sessão registrada.</p>'}`);
 }
@@ -132,7 +152,7 @@ function campoTexto(rotulo, texto) {
   </div>`;
 }
 
-function htmlAnalista(paciente, sessoes, valores, profissional) {
+function htmlAnalista(paciente, sessoes, valores, responsavel, profissional) {
   const atual = valores[0];
   const situacao =
     paciente.situacao === 'arquivado'
@@ -143,7 +163,7 @@ function htmlAnalista(paciente, sessoes, valores, profissional) {
     linha('Nome', paciente.nome_completo),
     linha('CPF', paciente.cpf),
     linha('Data de nascimento', dataBR(paciente.data_nascimento)),
-    linha('Cidade e estado', paciente.cidade),
+    linha('Cidade/Estado', paciente.cidade_estado),
     linha('Início do atendimento', dataBR(paciente.data_inicio)),
     linha('Celular', paciente.celular),
     linha('Contato de emergência (nome)', paciente.contato_emergencia_nome),
@@ -170,6 +190,7 @@ function htmlAnalista(paciente, sessoes, valores, profissional) {
   return paginaHtml(`
   ${topoHtml(profissional, 'Prontuário completo')}
   <table>${dados}</table>
+  ${responsavelHtml(paciente, responsavel, true)}
   ${campoTexto('Queixa inicial', paciente.queixa_inicial)}
   ${campoTexto('Adendos', paciente.adendos)}
   ${campoTexto('Anotações do caso', paciente.anotacoes_caso)}
@@ -221,7 +242,8 @@ async function gerarPdfPaciente(pacienteId, janelaPai) {
   const { paciente, nomeLimpo } = carregarPaciente(pacienteId);
   const profissional = lerProfissional();
   const sessoes = banco.listarSessoes(pacienteId, '');
-  const html = htmlPaciente(paciente, sessoes, profissional);
+  const responsavel = banco.obterResponsavel(pacienteId);
+  const html = htmlPaciente(paciente, sessoes, responsavel, profissional);
   return salvarPdf(janelaPai, `Prontuário - ${nomeLimpo}.pdf`, html);
 }
 
@@ -230,7 +252,8 @@ async function gerarPdfAnalista(pacienteId, janelaPai) {
   const profissional = lerProfissional();
   const sessoes = banco.listarSessoes(pacienteId, '');
   const valores = banco.listarValores(pacienteId);
-  const html = htmlAnalista(paciente, sessoes, valores, profissional);
+  const responsavel = banco.obterResponsavel(pacienteId);
+  const html = htmlAnalista(paciente, sessoes, valores, responsavel, profissional);
   return salvarPdf(janelaPai, `Prontuário completo - ${nomeLimpo}.pdf`, html);
 }
 

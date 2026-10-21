@@ -5,10 +5,22 @@ const { app } = require('electron');
 const Database = require('better-sqlite3-multiple-ciphers');
 
 const CAMPOS_PACIENTE = [
-  'nome_completo', 'cpf', 'data_nascimento', 'cidade', 'queixa_inicial',
+  'nome_completo', 'cpf', 'data_nascimento', 'cidade_estado', 'queixa_inicial',
   'data_inicio', 'celular', 'contato_emergencia_nome',
-  'contato_emergencia_telefone', 'adendos', 'anotacoes_caso',
+  'contato_emergencia_telefone', 'adendos', 'anotacoes_caso', 'menor_de_idade',
 ];
+
+const CAMPOS_RESPONSAVEL = ['nome_completo', 'data_nascimento', 'cpf', 'endereco', 'cidade_estado'];
+
+// Termo de autorização assinado: extensões aceitas (com o tipo de cada uma) e tamanho máximo.
+// O arquivo fica dentro do banco, então entra no backup e continua protegido pela senha.
+const TIPOS_DO_TERMO = {
+  '.pdf': 'application/pdf',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+};
+const LIMITE_DO_TERMO = 10 * 1024 * 1024;
 
 // Cada item é uma versão do banco. Mudanças futuras entram no fim da lista.
 // Datas são guardadas como texto, no formato AAAA-MM-DD HH:MM.
@@ -60,7 +72,7 @@ const MIGRACOES = [
   ALTER TABLE pacientes ADD COLUMN modificado_em TEXT;
   UPDATE pacientes SET modificado_em = strftime('%Y-%m-%d %H:%M', 'now', 'localtime');
   `,
-  // Versão 4: dados do profissional (cabeçalho do PDF). Linha única, preenchida pela tela "Meus dados".
+  // Versão 4: dados do profissional (cabeçalho do PDF). Linha única, preenchida pela tela de configurações.
   `
   CREATE TABLE profissional (
     id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -72,6 +84,31 @@ const MIGRACOES = [
   `,
   // Versão 5: foto do perfil, guardada como imagem em texto (data URL), já reduzida pela tela.
   `ALTER TABLE profissional ADD COLUMN foto TEXT NOT NULL DEFAULT '';`,
+  // Versão 6: a coluna "cidade" passa a guardar cidade e estado, e o paciente pode ser
+  // marcado como menor de idade (0 ou 1). Os dados que já existem são mantidos.
+  `
+  ALTER TABLE pacientes RENAME COLUMN cidade TO cidade_estado;
+  ALTER TABLE pacientes ADD COLUMN menor_de_idade INTEGER NOT NULL DEFAULT 0 CHECK (menor_de_idade IN (0, 1));
+  `,
+  // Versão 7: responsável pelo paciente menor de idade, com o termo de autorização assinado.
+  // Por enquanto o app usa um responsável por paciente, mas a tabela não impede mais de um.
+  `
+  CREATE TABLE responsaveis (
+    id INTEGER PRIMARY KEY,
+    paciente_id INTEGER NOT NULL REFERENCES pacientes(id) ON DELETE CASCADE,
+    nome_completo TEXT NOT NULL,
+    data_nascimento TEXT,
+    cpf TEXT,
+    endereco TEXT,
+    cidade_estado TEXT,
+    termo_nome TEXT,
+    termo_tipo TEXT,
+    termo_dados BLOB,
+    termo_anexado_em TEXT
+  );
+
+  CREATE INDEX idx_responsaveis_paciente ON responsaveis (paciente_id);
+  `,
 ];
 
 let db;
@@ -115,7 +152,7 @@ function agora() {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-// Marca o paciente como modificado agora. Sessões e valores também contam,
+// Marca o paciente como modificado agora. Sessões, valores e responsável também contam,
 // porque fazem parte do prontuário.
 function tocar(pacienteId) {
   db.prepare('UPDATE pacientes SET modificado_em = ? WHERE id = ?').run(agora(), pacienteId);
@@ -136,6 +173,8 @@ function soCamposDaFicha(dados) {
   }
   const limpo = {};
   for (const campo of CAMPOS_PACIENTE) limpo[campo] = dados[campo] ?? null;
+  // O SQLite não guarda true/false: a marca vira 0 ou 1.
+  limpo.menor_de_idade = dados.menor_de_idade ? 1 : 0;
   return limpo;
 }
 
@@ -185,7 +224,7 @@ function desarquivarPaciente(id) {
   db.prepare("UPDATE pacientes SET situacao = 'ativo', arquivado_em = NULL WHERE id = ?").run(id);
 }
 
-// As sessões e os valores do paciente saem junto (ON DELETE CASCADE).
+// As sessões, os valores e o responsável do paciente saem junto (ON DELETE CASCADE).
 function excluirPaciente(id) {
   db.prepare('DELETE FROM pacientes WHERE id = ?').run(id);
 }
@@ -298,6 +337,79 @@ function valorNaData(pacienteId, data) {
     .get(pacienteId, data.slice(0, 10)) ?? null;
 }
 
+// Devolve o responsável sem o arquivo do termo (que pode ser grande): só o nome
+// e a data do anexo. O arquivo em si sai por obterTermo.
+function obterResponsavel(pacienteId) {
+  return db
+    .prepare(
+      `SELECT id, nome_completo, data_nascimento, cpf, endereco, cidade_estado,
+              termo_nome, termo_tipo, termo_anexado_em
+       FROM responsaveis WHERE paciente_id = ? ORDER BY id LIMIT 1`
+    )
+    .get(pacienteId) ?? null;
+}
+
+// Grava o responsável do paciente (cria ou atualiza) e, se vier, mexe no termo.
+// O parâmetro termo tem três formas: null mantém o que está salvo, 'remover' apaga o arquivo
+// e um objeto { nome, tipo, dados } grava o arquivo novo. Só o nome do responsável é obrigatório.
+function salvarResponsavel(pacienteId, dados, termo) {
+  const campos = {};
+  for (const campo of CAMPOS_RESPONSAVEL) campos[campo] = String(dados[campo] ?? '').trim() || null;
+  if (!campos.nome_completo) throw new Error('O nome do responsável é obrigatório');
+
+  let arquivo = null;
+  if (termo && termo !== 'remover') {
+    if (!Object.values(TIPOS_DO_TERMO).includes(termo.tipo)) {
+      throw new Error('O termo deve ser um arquivo PDF, JPG ou PNG');
+    }
+    if (!termo.dados || termo.dados.byteLength > LIMITE_DO_TERMO) {
+      throw new Error('O arquivo do termo é inválido ou passa de 10 MB');
+    }
+    // O arquivo chega da tela como Uint8Array; o SQLite quer um Buffer.
+    arquivo = { nome: String(termo.nome ?? 'termo'), tipo: termo.tipo, dados: Buffer.from(termo.dados) };
+  }
+
+  db.transaction(() => {
+    let id = db
+      .prepare('SELECT id FROM responsaveis WHERE paciente_id = ? ORDER BY id LIMIT 1')
+      .get(pacienteId)?.id;
+
+    if (id) {
+      const sets = CAMPOS_RESPONSAVEL.map((c) => `${c} = @${c}`).join(', ');
+      db.prepare(`UPDATE responsaveis SET ${sets} WHERE id = @id`).run({ ...campos, id });
+    } else {
+      // Os nomes das colunas vêm da lista fixa acima, nunca da tela.
+      const colunas = CAMPOS_RESPONSAVEL.join(', ');
+      const valores = CAMPOS_RESPONSAVEL.map((c) => '@' + c).join(', ');
+      const r = db
+        .prepare(`INSERT INTO responsaveis (paciente_id, ${colunas}) VALUES (@paciente_id, ${valores})`)
+        .run({ ...campos, paciente_id: pacienteId });
+      id = Number(r.lastInsertRowid);
+    }
+
+    if (arquivo) {
+      db.prepare(
+        'UPDATE responsaveis SET termo_nome = ?, termo_tipo = ?, termo_dados = ?, termo_anexado_em = ? WHERE id = ?'
+      ).run(arquivo.nome, arquivo.tipo, arquivo.dados, agora(), id);
+    } else if (termo === 'remover') {
+      db.prepare(
+        'UPDATE responsaveis SET termo_nome = NULL, termo_tipo = NULL, termo_dados = NULL, termo_anexado_em = NULL WHERE id = ?'
+      ).run(id);
+    }
+    tocar(pacienteId);
+  })();
+}
+
+// O arquivo do termo, para abrir no leitor do Windows.
+function obterTermo(pacienteId) {
+  return db
+    .prepare(
+      `SELECT termo_nome AS nome, termo_tipo AS tipo, termo_dados AS dados
+       FROM responsaveis WHERE paciente_id = ? AND termo_dados IS NOT NULL ORDER BY id LIMIT 1`
+    )
+    .get(pacienteId) ?? null;
+}
+
 function obterProfissional() {
   return db.prepare('SELECT nome, crp, email, foto FROM profissional WHERE id = 1').get();
 }
@@ -323,6 +435,8 @@ function fechar() {
 }
 
 module.exports = {
+  TIPOS_DO_TERMO,
+  LIMITE_DO_TERMO,
   iniciar,
   criarPaciente,
   atualizarPaciente,
@@ -340,8 +454,10 @@ module.exports = {
   excluirValor,
   valorAtual,
   valorNaData,
+  obterResponsavel,
+  salvarResponsavel,
+  obterTermo,
   obterProfissional,
   salvarProfissional,
   fechar,
 };
-

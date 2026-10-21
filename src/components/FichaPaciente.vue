@@ -4,26 +4,32 @@ import Confirmacao from './Confirmacao.vue';
 import Colapsavel from './Colapsavel.vue';
 import CampoValor from './CampoValor.vue';
 import Sessoes from './Sessoes.vue';
+import Responsavel from './Responsavel.vue';
 import { reaisParaCentavos, centavosParaCampo, mensagemDeErro } from '../utilitarios.js';
 
 const props = defineProps({ pacienteId: [Number, String] });
 const emit = defineEmits(['salvo', 'mudou-situacao', 'alteracao-pendente']);
 
+// Campos de texto da ficha. A marca de menor de idade é tratada à parte (é verdadeiro ou falso).
 const CAMPOS = [
-  'nome_completo', 'cpf', 'data_nascimento', 'cidade', 'queixa_inicial',
+  'nome_completo', 'cpf', 'data_nascimento', 'cidade_estado', 'queixa_inicial',
   'data_inicio', 'celular', 'contato_emergencia_nome',
   'contato_emergencia_telefone', 'adendos', 'anotacoes_caso',
 ];
 
 // O pai recria este componente (:key) ao trocar de paciente, então 'novo' vale só no setup.
 const novo = props.pacienteId === 'novo';
-const ficha = ref(Object.fromEntries(CAMPOS.map((c) => [c, ''])));
+const ficha = ref({ ...Object.fromEntries(CAMPOS.map((c) => [c, ''])), menor_de_idade: false });
 const nomeSalvo = ref('');
 const situacao = ref('ativo');
 const erro = ref('');
 const confirmandoExclusao = ref(false);
 const editando = ref(novo);
 const dadosAbertos = ref(true);
+
+// Seção do responsável: tem botões próprios, mas o paciente novo grava os dados dela junto com a ficha.
+const responsavelRef = ref(null);
+const responsavelPendente = ref(false);
 
 // Menu "Gerar PDF": fecha ao escolher uma opção e ao clicar fora.
 const menuPdfAberto = ref(false);
@@ -53,9 +59,14 @@ const alterado = computed(
       dataCampo.value !== dataSalva.value)
 );
 
-// Formulários de sessão com texto sem salvar também contam como alteração pendente.
+// Formulários de sessão e a seção do responsável com texto sem salvar também contam como alteração pendente.
 const sessoesPendentes = ref(false);
-const pendente = computed(() => alterado.value || sessoesPendentes.value);
+const pendente = computed(
+  () =>
+    alterado.value ||
+    sessoesPendentes.value ||
+    (ficha.value.menor_de_idade && responsavelPendente.value)
+);
 
 // O App.vue usa isso para proteger a saída da ficha.
 watch(pendente, (valor) => emit('alteracao-pendente', valor));
@@ -72,6 +83,8 @@ async function carregarHistorico() {
 async function carregarFicha() {
   const p = await window.api.pacientes.obter(props.pacienteId);
   for (const c of CAMPOS) ficha.value[c] = p[c] ?? '';
+  // O banco guarda 0 ou 1.
+  ficha.value.menor_de_idade = !!p.menor_de_idade;
   nomeSalvo.value = p.nome_completo;
   situacao.value = p.situacao;
   retratoSalvo.value = retrato();
@@ -125,6 +138,9 @@ function salvar() {
     const dados = { ...ficha.value };
     // O valor é conferido antes de gravar, para não ficar um cadastro pela metade.
     const valorNovo = conferirValor();
+    // O mesmo vale para o responsável de um paciente novo: confere antes de criar o paciente.
+    const comResponsavel = novo && dados.menor_de_idade && responsavelRef.value;
+    if (comResponsavel) responsavelRef.value.conferir();
 
     if (!novo) {
       await window.api.pacientes.atualizar(props.pacienteId, dados);
@@ -142,6 +158,10 @@ function salvar() {
     if (valorNovo) {
       // Se falhar, o paciente já existe e o valor pode ser registrado depois, editando a ficha.
       await window.api.valores.adicionar(id, valorNovo.centavos, valorNovo.data).catch(() => {});
+    }
+    if (comResponsavel) {
+      // Idem: se falhar, o responsável pode ser preenchido depois, na própria seção.
+      await responsavelRef.value.salvarPara(id).catch(() => {});
     }
     emit('salvo', id);
   });
@@ -244,8 +264,12 @@ function excluir() {
           <label>Data de nascimento
             <input v-model="ficha.data_nascimento" type="date" />
           </label>
-          <label>Cidade e estado
-            <input v-model="ficha.cidade" />
+          <label class="largo marcar">
+            <input v-model="ficha.menor_de_idade" type="checkbox" />
+            Paciente menor de idade
+          </label>
+          <label>Cidade/Estado
+            <input v-model="ficha.cidade_estado" />
           </label>
           <label>Início do atendimento
             <input v-model="ficha.data_inicio" type="date" />
@@ -286,10 +310,32 @@ function excluir() {
 
     <Confirmacao
       v-if="confirmandoExclusao"
-      texto="Excluir este paciente? As sessões e os valores dele também serão excluídos."
+      texto="Excluir este paciente? As sessões, os valores e os dados do responsável também serão excluídos."
       @cancelar="confirmandoExclusao = false"
       @confirmar="excluir"
     />
   </form>
+  <!-- Fora do formulário: a seção tem botões próprios e um formulário não pode ficar dentro de outro. -->
+  <Responsavel
+    v-if="ficha.menor_de_idade"
+    ref="responsavelRef"
+    :paciente-id="pacienteId"
+    @alteracao-pendente="responsavelPendente = $event"
+  />
   <Sessoes v-if="!novo" :paciente-id="pacienteId" @alteracao-pendente="sessoesPendentes = $event" />
 </template>
+
+<style scoped>
+/* A caixa de menor de idade ocupa a linha toda e fica ao lado do texto, não em cima. */
+.marcar {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--texto);
+}
+.marcar input {
+  width: auto;
+  accent-color: var(--roxo);
+}
+</style>

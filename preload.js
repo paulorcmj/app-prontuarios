@@ -26,6 +26,14 @@ contextBridge.exposeInMainWorld('api', {
     atual: (pacienteId) => ipcRenderer.invoke('valores:atual', pacienteId),
     naData: (pacienteId, data) => ipcRenderer.invoke('valores:naData', pacienteId, data),
   },
+  responsavel: {
+    obter: (pacienteId) => ipcRenderer.invoke('responsavel:obter', pacienteId),
+    salvar: (pacienteId, dados, termo) => ipcRenderer.invoke('responsavel:salvar', pacienteId, dados, termo),
+  },
+  termo: {
+    escolher: () => ipcRenderer.invoke('termo:escolher'),
+    abrir: (pacienteId) => ipcRenderer.invoke('termo:abrir', pacienteId),
+  },
   profissional: {
     obter: () => ipcRenderer.invoke('profissional:obter'),
     salvar: (dados) => ipcRenderer.invoke('profissional:salvar', dados),

@@ -1,7 +1,7 @@
 // Processo principal do Electron: abre o banco, cria a janela
 // e responde aos pedidos da tela.
 
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const banco = require('./banco');
@@ -32,6 +32,20 @@ let pendente = null;
 
 // Backup escolhido e já conferido, esperando a confirmação da tela.
 let backupEscolhido = null;
+
+// Para abrir um termo de autorização, o app grava uma cópia numa pasta temporária do sistema
+// e entrega ao leitor padrão do Windows. A pasta é apagada ao abrir e ao fechar o app.
+function pastaTemporaria() {
+  return path.join(app.getPath('temp'), 'app-prontuarios-termos');
+}
+
+function limparTemporarios() {
+  try {
+    fs.rmSync(pastaTemporaria(), { recursive: true, force: true });
+  } catch {
+    // arquivo ainda aberto no leitor: a limpeza é refeita na próxima vez
+  }
+}
 
 function criarJanela() {
   const janela = new BrowserWindow({
@@ -125,6 +139,38 @@ function registrarIpcBanco() {
   ipcMain.handle('valores:excluir', (_e, id) => banco.excluirValor(id));
   ipcMain.handle('valores:atual', (_e, pacienteId) => banco.valorAtual(pacienteId));
   ipcMain.handle('valores:naData', (_e, pacienteId, data) => banco.valorNaData(pacienteId, data));
+  ipcMain.handle('responsavel:obter', (_e, pacienteId) => banco.obterResponsavel(pacienteId));
+  ipcMain.handle('responsavel:salvar', (_e, pacienteId, dados, termo) => banco.salvarResponsavel(pacienteId, dados, termo));
+
+  // Escolher o termo só lê o arquivo e devolve para a tela; quem grava no banco é o
+  // responsavel:salvar, junto com o resto da seção.
+  ipcMain.handle('termo:escolher', async (evento) => {
+    const janela = BrowserWindow.fromWebContents(evento.sender);
+    const escolha = await dialog.showOpenDialog(janela, {
+      title: 'Anexar termo de autorização assinado',
+      properties: ['openFile'],
+      filters: [{ name: 'PDF ou imagem', extensions: ['pdf', 'jpg', 'jpeg', 'png'] }],
+    });
+    if (escolha.canceled) return null;
+    const arquivo = escolha.filePaths[0];
+    const tipo = banco.TIPOS_DO_TERMO[path.extname(arquivo).toLowerCase()];
+    if (!tipo) throw new Error('Escolha um arquivo PDF, JPG ou PNG');
+    if (fs.statSync(arquivo).size > banco.LIMITE_DO_TERMO) throw new Error('O arquivo passa de 10 MB');
+    return { nome: path.basename(arquivo), tipo, dados: fs.readFileSync(arquivo) };
+  });
+
+  ipcMain.handle('termo:abrir', async (_e, pacienteId) => {
+    const termo = banco.obterTermo(pacienteId);
+    if (!termo) throw new Error('Este paciente não tem termo anexado');
+    // O nome do arquivo temporário não leva o nome do paciente nem o do arquivo original.
+    const extensao = Object.keys(banco.TIPOS_DO_TERMO).find((e) => banco.TIPOS_DO_TERMO[e] === termo.tipo);
+    fs.mkdirSync(pastaTemporaria(), { recursive: true });
+    const arquivo = path.join(pastaTemporaria(), `termo-${Date.now()}${extensao}`);
+    fs.writeFileSync(arquivo, termo.dados);
+    const falha = await shell.openPath(arquivo);
+    if (falha) throw new Error('Não foi possível abrir o termo');
+  });
+
   ipcMain.handle('profissional:obter', () => banco.obterProfissional());
   ipcMain.handle('profissional:salvar', (_e, dados) => banco.salvarProfissional(dados));
   ipcMain.handle('pdf:paciente', (evento, pacienteId) =>
@@ -283,11 +329,14 @@ function registrarIpcAcesso() {
 }
 
 app.whenReady().then(() => {
+  limparTemporarios();
   registrarIpcAcesso();
   registrarIpcRestauracao();
   // Sem a barra de menu padrão (File, Edit, View, Window).
   Menu.setApplicationMenu(null);
   criarJanela();
 });
+
+app.on('will-quit', limparTemporarios);
 
 app.on('window-all-closed', () => app.quit());
