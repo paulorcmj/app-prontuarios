@@ -3,10 +3,31 @@
 
 const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const banco = require('./banco');
 const { gerarPdfPaciente, gerarPdfAnalista } = require('./pdf');
 const seguranca = require('./seguranca');
-const fs = require('fs');
+const backup = require('./backup');
+
+// Os canais que usam o banco só são registrados depois que ele abre.
+// Enquanto o app está trancado, a tela só consegue falar com os canais "acesso:" e de carregar backup.
+let liberado = false;
+
+// "Sair" recarrega a tela (que pergunta antes se houver alterações sem salvar).
+// O app só tranca quando a tela nova pede o estado, com a saída já confirmada.
+let sairPendente = false;
+
+// A tela avisa aqui quando há alterações sem salvar; o fechamento da janela consulta este valor.
+let alteracoesPendentes = false;
+
+// Mensagem de falha do backup automático, mostrada na janela de backup.
+let avisoBackup = '';
+
+// Configuração criada na tela de senha, ainda não gravada em disco.
+let pendente = null;
+
+// Backup escolhido e já conferido, esperando a confirmação da tela.
+let backupEscolhido = null;
 
 function criarJanela() {
   const janela = new BrowserWindow({
@@ -25,9 +46,13 @@ function criarJanela() {
   // a tela mostra o aviso do app e só depois pede o fechamento de verdade.
   let fechamentoConfirmado = false;
   janela.on('close', (evento) => {
-    if (fechamentoConfirmado || !alteracoesPendentes) return;
-    evento.preventDefault();
-    janela.webContents.send('janela:pedido-de-fechar');
+    if (!fechamentoConfirmado && alteracoesPendentes) {
+      evento.preventDefault();
+      janela.webContents.send('janela:pedido-de-fechar');
+      return;
+    }
+    // A janela vai fechar de verdade: guarda o estado final da sessão.
+    backupAoSair();
   });
   ipcMain.on('janela:alteracoes', (_e, pendente) => {
     alteracoesPendentes = pendente === true;
@@ -40,29 +65,34 @@ function criarJanela() {
   janela.webContents.on('did-finish-load', () => {
     alteracoesPendentes = false;
   });
-  // A tela cancela o fechamento quando há alterações sem salvar (beforeunload);
-  // aqui o usuário escolhe entre sair mesmo assim ou voltar a editar.
-  janela.webContents.on('will-prevent-unload', (evento) => {
-    const escolha = dialog.showMessageBoxSync(janela, {
-      type: 'warning',
-      buttons: ['Sair sem salvar', 'Continuar editando'],
-      defaultId: 1,
-      cancelId: 1,
-      title: 'Alterações não salvas',
-      message: 'Há alterações que não foram salvas.',
-      detail: 'Se sair agora, o que foi digitado será perdido.',
-    });
-    // Se o usuário voltou a editar, o pedido de sair é cancelado.
-    if (escolha !== 0) sairPendente = false;
-    // preventDefault() ignora o cancelamento da tela e deixa a janela fechar.
-    if (escolha === 0) evento.preventDefault();
-  });
   // Em desenvolvimento a tela vem do servidor do Vite; no app pronto, da pasta gerada.
   if (process.env.VITE_DEV_SERVER_URL) {
     janela.loadURL(process.env.VITE_DEV_SERVER_URL);
   } else {
     janela.loadFile(path.join(__dirname, 'dist', 'index.html'));
   }
+}
+
+// Backup ao fechar a janela e ao sair, só se algo mudou. Se falhar (pasta num pendrive
+// desconectado, por exemplo), o backup de abertura tenta de novo e mostra o aviso.
+function backupAoSair() {
+  if (!liberado) return;
+  try {
+    backup.fazerBackup(true);
+  } catch {
+    // o backup de abertura repete a tentativa
+  }
+}
+
+// Fecha o banco e volta ao estado de antes da senha. Os canais do banco continuam
+// registrados, mas sem banco aberto qualquer chamada falha.
+function trancar() {
+  banco.fechar();
+  liberado = false;
+  pendente = null;
+  backupEscolhido = null;
+  sairPendente = false;
+  avisoBackup = '';
 }
 
 // Cada canal liga uma chamada da tela a uma função do banco.js.
@@ -96,30 +126,28 @@ function registrarIpcBanco() {
   ipcMain.handle('pdf:paciente', (evento, pacienteId) =>
     gerarPdfPaciente(pacienteId, BrowserWindow.fromWebContents(evento.sender))
   );
+
+  ipcMain.handle('backup:estado', () => ({ ...backup.estado(), aviso: avisoBackup }));
+  ipcMain.handle('backup:escolherPasta', async (evento) => {
+    const janela = BrowserWindow.fromWebContents(evento.sender);
+    const escolha = await dialog.showOpenDialog(janela, {
+      title: 'Escolher a pasta dos backups',
+      // Abre na pasta atual, se ela existir; senão, no padrão do Windows.
+      defaultPath: backup.pastaExistente(),
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (escolha.canceled) return false;
+    backup.escolherPasta(escolha.filePaths[0]);
+    // Já sai um backup na pasta nova, para o usuário ver que funcionou.
+    backup.fazerBackup(false);
+    avisoBackup = '';
+    return true;
+  });
+  ipcMain.handle('backup:agora', () => {
+    backup.fazerBackup(false);
+    avisoBackup = '';
+  });
 }
-
-// Os canais que usam o banco só são registrados depois que ele abre.
-// Enquanto o app está trancado, a tela só consegue falar com os canais "acesso:".
-let liberado = false;
-
-// "Sair" recarrega a tela (que pergunta antes se houver alterações sem salvar).
-// O app só tranca quando a tela nova pede o estado, com a saída já confirmada.
-let sairPendente = false;
-
-// A tela avisa aqui quando há alterações sem salvar; o fechamento da janela consulta este valor.
-let alteracoesPendentes = false;
-
-// Fecha o banco e volta ao estado de antes da senha. Os canais do banco continuam
-// registrados, mas sem banco aberto qualquer chamada falha.
-function trancar() {
-  banco.fechar();
-  liberado = false;
-  pendente = null;
-  sairPendente = false;
-}
-
-// Configuração criada na tela de senha, ainda não gravada em disco.
-let pendente = null;
 
 // Se sobrou um banco de antes sem o chaves.json, nenhuma chave nova abre ele.
 // Em vez de apagar, ele é renomeado e o app começa um banco novo.
@@ -135,6 +163,57 @@ function liberarBanco(chaveBanco) {
   banco.iniciar(chaveBanco);
   registrarIpcBanco();
   liberado = true;
+  // Backup automático ao abrir: rede de segurança para quando o de fechamento não rodou.
+  // Uma falha não impede o uso do app: vira um aviso na janela de backup.
+  try {
+    backup.fazerBackup(true);
+  } catch (e) {
+    avisoBackup = `O backup automático falhou: ${e.message}`;
+  }
+}
+
+// Carregar backup funciona com o app trancado ou aberto: num computador novo,
+// é o jeito de trazer os dados antes de criar qualquer senha.
+// São três chamadas: escolher o arquivo (o app confere), confirmar (a tela pergunta) ou cancelar.
+function registrarIpcRestauracao() {
+  ipcMain.handle('backup:escolherArquivo', async (evento) => {
+    const janela = BrowserWindow.fromWebContents(evento.sender);
+    const escolha = await dialog.showOpenDialog(janela, {
+      title: 'Carregar backup',
+      // Abre na pasta de backups, se ela existir; senão, no padrão do Windows.
+      defaultPath: backup.pastaExistente(),
+      properties: ['openFile'],
+      filters: [{ name: 'Backup do app de prontuários', extensions: ['backup'] }],
+    });
+    if (escolha.canceled) return false;
+    const arquivo = escolha.filePaths[0];
+    // Confere o arquivo antes de perguntar qualquer coisa; se estiver ruim, nada é tocado.
+    const arquivos = backup.lerBackup(arquivo);
+
+    const jaTemDados = backup.existemArquivosDoApp();
+    // A cópia dos dados atuais vai para a pasta de backups; se ela não estiver
+    // disponível, fica ao lado do arquivo que está sendo carregado.
+    const pastaDaCopia = backup.pastaExistente() || path.dirname(arquivo);
+    backupEscolhido = { arquivos, jaTemDados, pastaDaCopia };
+    return { jaTemDados, pastaDaCopia };
+  });
+
+  ipcMain.handle('backup:confirmarCarregar', () => {
+    if (!backupEscolhido) throw new Error('Nenhum backup foi escolhido');
+    const { arquivos, jaTemDados, pastaDaCopia } = backupEscolhido;
+    backupEscolhido = null;
+    // Se a cópia de segurança falhar, o erro sobe e nada é trocado.
+    if (jaTemDados) backup.gravarBackup(pastaDaCopia, 'antes-de-carregar');
+    pendente = null;
+    banco.fechar();
+    backup.substituirArquivos(arquivos);
+    app.relaunch();
+    app.exit(0);
+  });
+
+  ipcMain.handle('backup:cancelarCarregar', () => {
+    backupEscolhido = null;
+  });
 }
 
 function registrarIpcAcesso() {
@@ -145,31 +224,34 @@ function registrarIpcAcesso() {
   });
 
   ipcMain.handle('acesso:sair', () => {
-    if (liberado) sairPendente = true;
+    if (!liberado) return;
+    // Só chega aqui com a saída já confirmada na tela.
+    backupAoSair();
+    sairPendente = true;
   });
 
-// Primeiro uso, em duas etapas: preparar devolve a chave de recuperação para a tela mostrar
-// e só confirmar grava em disco e abre o banco.
-ipcMain.handle('acesso:preparar', (_e, senha) => {
-  if (liberado || seguranca.existeConfiguracao()) throw new Error('O app já foi configurado');
-  pendente = seguranca.preparar(senha);
-  return pendente.chaveRecuperacao;
-});
+  // Primeiro uso, em duas etapas: preparar devolve a chave de recuperação para a tela mostrar
+  // e só confirmar grava em disco e abre o banco.
+  ipcMain.handle('acesso:preparar', (_e, senha) => {
+    if (liberado || seguranca.existeConfiguracao()) throw new Error('O app já foi configurado');
+    pendente = seguranca.preparar(senha);
+    return pendente.chaveRecuperacao;
+  });
 
-ipcMain.handle('acesso:confirmar', () => {
-  if (!pendente) throw new Error('Nenhuma senha em criação');
-  if (seguranca.existeConfiguracao()) throw new Error('O app já foi configurado');
-  guardarBancoSemChave();
-  // O banco abre antes de gravar as chaves: se a abertura falhar, nada fica gravado
-  // e o usuário pode tentar de novo.
-  liberarBanco(pendente.chaveBanco);
-  seguranca.gravar(pendente.conteudo);
-  pendente = null;
-});
+  ipcMain.handle('acesso:confirmar', () => {
+    if (!pendente) throw new Error('Nenhuma senha em criação');
+    if (seguranca.existeConfiguracao()) throw new Error('O app já foi configurado');
+    guardarBancoSemChave();
+    // O banco abre antes de gravar as chaves: se a abertura falhar, nada fica gravado
+    // e o usuário pode tentar de novo.
+    liberarBanco(pendente.chaveBanco);
+    seguranca.gravar(pendente.conteudo);
+    pendente = null;
+  });
 
-ipcMain.handle('acesso:cancelar', () => {
-  pendente = null;
-});
+  ipcMain.handle('acesso:cancelar', () => {
+    pendente = null;
+  });
 
   ipcMain.handle('acesso:entrar', (_e, senha) => {
     if (liberado) return true;
@@ -188,16 +270,17 @@ ipcMain.handle('acesso:cancelar', () => {
     liberarBanco(chaveBanco);
     return true;
   });
-}
 
   // Só funciona com o app já aberto; a senha atual é conferida de novo.
   ipcMain.handle('acesso:alterarSenha', (_e, senhaAtual, novaSenha) => {
     if (!liberado) throw new Error('O app está trancado');
     return seguranca.alterarSenha(senhaAtual, novaSenha);
   });
+}
 
 app.whenReady().then(() => {
   registrarIpcAcesso();
+  registrarIpcRestauracao();
   // Sem a barra de menu padrão (File, Edit, View, Window).
   Menu.setApplicationMenu(null);
   criarJanela();

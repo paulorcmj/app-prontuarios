@@ -10,7 +10,8 @@ defineEmits(['cancelar', 'confirmar']);
 <template>
   <div class="fundo" @click.self="$emit('cancelar')">
     <div class="janela" role="dialog" aria-modal="true">
-      <p>{{ texto }}</p>
+      <!-- Sem conteúdo no slot, mostra o texto simples. -->
+      <slot><p>{{ texto }}</p></slot>
       <div class="acoes">
         <!-- type="button" evita que o clique envie o formulário em que a janela está -->
         <button type="button" @click="$emit('cancelar')">{{ rotuloCancelar }}</button>

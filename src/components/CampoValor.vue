@@ -71,7 +71,7 @@ async function remover() {
               <span>{{ dataBR(v.a_partir_de) }}: {{ reais(v.valor) }}</span>
               <button type="button" class="perigo" @click="removendo = v">Remover</button>
             </li>
-            <li v-if="!historico.length" class="vazio">Nenhum valor registrado.</li>
+            <li v-if="!historico.length" class="vazio">Nenhum valor registrado</li>
           </ul>
         </span>
       </div>

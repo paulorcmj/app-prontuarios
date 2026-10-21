@@ -2,6 +2,7 @@
 // Perfil no topo da lateral: foto, nome e um menu suspenso com "Configurações".
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import AlterarSenha from './AlterarSenha.vue';
+import Backup from './Backup.vue';
 
 const props = defineProps({ profissional: Object });
 const emit = defineEmits(['configuracoes']);
@@ -9,6 +10,7 @@ const emit = defineEmits(['configuracoes']);
 const aberto = ref(false);
 const raiz = ref(null);
 const alterandoSenha = ref(false);
+const backupAberto = ref(false);
 
 const inicial = computed(() => props.profissional.nome.trim().charAt(0).toUpperCase() || '?');
 
@@ -34,6 +36,11 @@ function abrirAlterarSenha() {
   alterandoSenha.value = true;
 }
 
+function abrirBackup() {
+  aberto.value = false;
+  backupAberto.value = true;
+}
+
 // O pedido vai para o Principal, que mostra o aviso de alterações não salvas
 // (o mesmo da troca de paciente) antes de sair.
 function sair() {
@@ -41,7 +48,15 @@ function sair() {
   window.dispatchEvent(new CustomEvent('pedir-saida'));
 }
 
-onMounted(() => document.addEventListener('click', aoClicarFora));
+onMounted(async () => {
+  document.addEventListener('click', aoClicarFora);
+  try {
+    const estado = await window.api.backup.estado();
+    if (!estado.pasta || estado.aviso) backupAberto.value = true;
+  } catch {
+    // sem resposta, o botão do menu continua disponível
+  }
+});
 onBeforeUnmount(() => document.removeEventListener('click', aoClicarFora));
 </script>
 
@@ -60,10 +75,12 @@ onBeforeUnmount(() => document.removeEventListener('click', aoClicarFora));
     <div v-if="aberto" class="perfil-menu">
       <button type="button" @click="abrirConfiguracoes">Configurações</button>
       <button type="button" @click="abrirAlterarSenha">Alterar senha</button>
+      <button type="button" @click="abrirBackup">Backup</button>
       <button type="button" @click="sair">Sair</button>
     </div>
     <Teleport to="body">
       <AlterarSenha v-if="alterandoSenha" @fechar="alterandoSenha = false" />
+      <Backup v-if="backupAberto" @fechar="backupAberto = false" />
     </Teleport>
   </div>
 </template>

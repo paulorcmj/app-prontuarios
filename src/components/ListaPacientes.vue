@@ -136,7 +136,7 @@ const ordenados = computed(() => [...props.pacientes].sort(COMPARACOES[ordem.val
           </button>
         </li>
       </ul>
-      <p v-if="!pacientes.length" class="vazio">Nenhum paciente.</p>
+      <p v-if="!pacientes.length" class="vazio">Nenhum paciente</p>
     </div>
   </aside>
 </template>

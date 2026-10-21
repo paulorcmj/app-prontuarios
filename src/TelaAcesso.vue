@@ -1,5 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
+import { mensagemDeErro } from './utilitarios.js';
+import ConfirmarBackup from './components/ConfirmarBackup.vue';
 
 const emit = defineEmits(['liberado']);
 
@@ -27,8 +29,8 @@ function trocarModo(novo) {
 }
 
 function validarNovaSenha() {
-  if (!senha.value) return 'Digite uma senha.';
-  if (senha.value !== confirmacao.value) return 'As senhas não são iguais.';
+  if (!senha.value) return 'Digite uma senha';
+  if (senha.value !== confirmacao.value) return 'As senhas não são iguais';
   return '';
 }
 
@@ -43,7 +45,7 @@ async function criar() {
     copiado.value = false;
     modo.value = 'chave';
   } catch {
-    erro.value = 'Não foi possível criar a senha.';
+    erro.value = 'Não foi possível criar a senha';
   } finally {
     ocupado.value = false;
   }
@@ -72,7 +74,7 @@ async function confirmar() {
     confirmacao.value = '';
     emit('liberado');
   } catch {
-    erro.value = 'Não foi possível concluir. Tente de novo.';
+    erro.value = 'Não foi possível concluir, tente de novo';
   } finally {
     ocupado.value = false;
   }
@@ -83,9 +85,9 @@ async function entrar() {
   ocupado.value = true;
   try {
     if (await window.api.acesso.entrar(senha.value)) emit('liberado');
-    else erro.value = 'Senha incorreta.';
+    else erro.value = 'Senha incorreta';
   } catch {
-    erro.value = 'Não foi possível abrir o app.';
+    erro.value = 'Não foi possível abrir o app';
   } finally {
     ocupado.value = false;
   }
@@ -97,10 +99,43 @@ async function recuperar() {
   ocupado.value = true;
   try {
     if (await window.api.acesso.recuperar(chaveDigitada.value, senha.value)) emit('liberado');
-    else erro.value = 'Chave de recuperação incorreta.';
+    else erro.value = 'Chave de recuperação incorreta';
   } catch {
-    erro.value = 'Não foi possível trocar a senha.';
+    erro.value = 'Não foi possível trocar a senha';
   } finally {
+    ocupado.value = false;
+  }
+}
+
+// Carregar backup em duas etapas: o app abre o seletor e confere o arquivo; a confirmação
+// aparece aqui na tela e só depois da resposta a troca acontece (o app reinicia ao terminar).
+const backupEscolhido = ref(null);
+
+async function carregarBackup() {
+  erro.value = '';
+  ocupado.value = true;
+  try {
+    const dados = await window.api.backup.escolherArquivo();
+    if (dados) backupEscolhido.value = dados;
+  } catch (e) {
+    erro.value = mensagemDeErro(e);
+  } finally {
+    ocupado.value = false;
+  }
+}
+
+async function cancelarCarregar() {
+  backupEscolhido.value = null;
+  await window.api.backup.cancelarCarregar().catch(() => {});
+}
+
+async function confirmarCarregar() {
+  backupEscolhido.value = null;
+  ocupado.value = true;
+  try {
+    await window.api.backup.confirmarCarregar();
+  } catch (e) {
+    erro.value = mensagemDeErro(e);
     ocupado.value = false;
   }
 }
@@ -129,6 +164,7 @@ async function copiar() {
       </label>
       <p v-if="erro" class="erro">{{ erro }}</p>
       <div class="acoes">
+        <button type="button" class="link" :disabled="ocupado" @click="carregarBackup">Carregar backup</button>
         <button type="submit" class="principal" :disabled="ocupado">Criar senha</button>
       </div>
     </form>
@@ -140,6 +176,7 @@ async function copiar() {
       </label>
       <p v-if="erro" class="erro">{{ erro }}</p>
       <div class="acoes">
+        <button type="button" class="link" :disabled="ocupado" @click="carregarBackup">Carregar backup</button>
         <button type="button" @click="trocarModo('recuperar')">Esqueci a senha</button>
         <button type="submit" class="principal" :disabled="ocupado">Entrar</button>
       </div>
@@ -170,18 +207,18 @@ async function copiar() {
         Se a senha for esquecida, esta chave é a única forma de abrir os prontuários. Guarde num
         lugar seguro, fora do computador (papel ou gerenciador de senhas). Ela não será mostrada de novo.
       </p>
-<div class="chave-linha">
-  <p class="chave">{{ chaveGerada }}</p>
-  <button type="button" class="icone" :title="copiado ? 'Copiado' : 'Copiar chave'" aria-label="Copiar chave" @click="copiar">
-    <svg v-if="!copiado" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <rect x="9" y="9" width="13" height="13" rx="2" />
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-    </svg>
-    <svg v-else viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M5 12.5l4.5 4.5L19 7.5" />
-    </svg>
-  </button>
-</div>
+      <div class="chave-linha">
+        <p class="chave">{{ chaveGerada }}</p>
+        <button type="button" class="icone" :title="copiado ? 'Copiado' : 'Copiar chave'" aria-label="Copiar chave" @click="copiar">
+          <svg v-if="!copiado" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="9" width="13" height="13" rx="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+          </svg>
+          <svg v-else viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12.5l4.5 4.5L19 7.5" />
+          </svg>
+        </button>
+      </div>
       <label class="confirmar">
         <input type="checkbox" v-model="salvou" />
         <span>Guardei a chave em um lugar seguro</span>
@@ -192,6 +229,12 @@ async function copiar() {
         <button type="button" class="principal" :disabled="!salvou || ocupado" @click="confirmar">Continuar</button>
       </div>
     </div>
+    <ConfirmarBackup
+      v-if="backupEscolhido"
+      :dados="backupEscolhido"
+      @cancelar="cancelarCarregar"
+      @confirmar="confirmarCarregar"
+    />
   </main>
 </template>
 
@@ -199,6 +242,24 @@ async function copiar() {
 button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* "Carregar backup": texto clicável, sem caixa, no canto esquerdo da linha de botões.
+   O tamanho da letra é o mesmo dos rótulos dos campos (13px). */
+button.link {
+  margin-right: auto;
+  padding: 6px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--texto-suave);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+button.link:hover:not(:disabled) {
+  background: transparent;
+  color: var(--roxo);
 }
 
 .chave {

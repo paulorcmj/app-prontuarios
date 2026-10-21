@@ -260,7 +260,7 @@ async function aoMudarSituacao() {
         @mudou-situacao="aoMudarSituacao"
         @alteracao-pendente="alteracaoPendente = $event"
       />
-      <p v-else class="vazio">Selecione um paciente ou cadastre um novo.</p>
+      <p v-else class="vazio">Selecione um paciente ou cadastre um novo</p>
     </main>
 
     <!-- Borda arrastável da lateral, sem indicador visual: só o cursor muda e aparece uma dica. -->

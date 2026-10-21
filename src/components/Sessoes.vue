@@ -183,7 +183,7 @@ async function excluir() {
         </Colapsavel>
       </li>
     </ol>
-    <p v-else class="vazio">{{ busca ? 'Nenhuma sessão encontrada.' : 'Nenhuma sessão registrada.' }}</p>
+    <p v-else class="vazio">{{ busca ? 'Nenhuma sessão encontrada' : 'Nenhuma sessão registrada' }}</p>
 
     <Confirmacao
       v-if="excluindo"
