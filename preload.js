@@ -41,5 +41,12 @@ contextBridge.exposeInMainWorld('api', {
   cancelar: () => ipcRenderer.invoke('acesso:cancelar'),
   entrar: (senha) => ipcRenderer.invoke('acesso:entrar', senha),
   recuperar: (chave, novaSenha) => ipcRenderer.invoke('acesso:recuperar', chave, novaSenha),
-},
+  alterarSenha: (senhaAtual, novaSenha) => ipcRenderer.invoke('acesso:alterarSenha', senhaAtual, novaSenha),
+  sair: () => ipcRenderer.invoke('acesso:sair'),
+  },
+  janela: {
+    avisarAlteracoes: (pendente) => ipcRenderer.send('janela:alteracoes', pendente),
+    aoPedirFechar: (retorno) => ipcRenderer.on('janela:pedido-de-fechar', () => retorno()),
+    fecharMesmoAssim: () => ipcRenderer.invoke('janela:fechar'),
+  },
 });

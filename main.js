@@ -21,6 +21,25 @@ function criarJanela() {
       nodeIntegration: false,
     },
   });
+  // Alt+F4 e o X da janela passam por aqui. Com alterações sem salvar, a janela não fecha:
+  // a tela mostra o aviso do app e só depois pede o fechamento de verdade.
+  let fechamentoConfirmado = false;
+  janela.on('close', (evento) => {
+    if (fechamentoConfirmado || !alteracoesPendentes) return;
+    evento.preventDefault();
+    janela.webContents.send('janela:pedido-de-fechar');
+  });
+  ipcMain.on('janela:alteracoes', (_e, pendente) => {
+    alteracoesPendentes = pendente === true;
+  });
+  ipcMain.handle('janela:fechar', () => {
+    fechamentoConfirmado = true;
+    janela.close();
+  });
+  // Tela recarregada, alterações descartadas: o valor guardado aqui não pode ficar velho.
+  janela.webContents.on('did-finish-load', () => {
+    alteracoesPendentes = false;
+  });
   // A tela cancela o fechamento quando há alterações sem salvar (beforeunload);
   // aqui o usuário escolhe entre sair mesmo assim ou voltar a editar.
   janela.webContents.on('will-prevent-unload', (evento) => {
@@ -33,6 +52,8 @@ function criarJanela() {
       message: 'Há alterações que não foram salvas.',
       detail: 'Se sair agora, o que foi digitado será perdido.',
     });
+    // Se o usuário voltou a editar, o pedido de sair é cancelado.
+    if (escolha !== 0) sairPendente = false;
     // preventDefault() ignora o cancelamento da tela e deixa a janela fechar.
     if (escolha === 0) evento.preventDefault();
   });
@@ -45,7 +66,11 @@ function criarJanela() {
 }
 
 // Cada canal liga uma chamada da tela a uma função do banco.js.
+let ipcBancoRegistrado = false;
+
 function registrarIpcBanco() {
+  if (ipcBancoRegistrado) return;
+  ipcBancoRegistrado = true;
   ipcMain.handle('pdf:analista', (evento, pacienteId) =>
     gerarPdfAnalista(pacienteId, BrowserWindow.fromWebContents(evento.sender))
   );
@@ -77,6 +102,22 @@ function registrarIpcBanco() {
 // Enquanto o app está trancado, a tela só consegue falar com os canais "acesso:".
 let liberado = false;
 
+// "Sair" recarrega a tela (que pergunta antes se houver alterações sem salvar).
+// O app só tranca quando a tela nova pede o estado, com a saída já confirmada.
+let sairPendente = false;
+
+// A tela avisa aqui quando há alterações sem salvar; o fechamento da janela consulta este valor.
+let alteracoesPendentes = false;
+
+// Fecha o banco e volta ao estado de antes da senha. Os canais do banco continuam
+// registrados, mas sem banco aberto qualquer chamada falha.
+function trancar() {
+  banco.fechar();
+  liberado = false;
+  pendente = null;
+  sairPendente = false;
+}
+
 // Configuração criada na tela de senha, ainda não gravada em disco.
 let pendente = null;
 
@@ -98,8 +139,13 @@ function liberarBanco(chaveBanco) {
 
 function registrarIpcAcesso() {
   ipcMain.handle('acesso:estado', () => {
+    if (sairPendente) trancar();
     if (liberado) return 'liberado';
     return seguranca.existeConfiguracao() ? 'entrar' : 'criar';
+  });
+
+  ipcMain.handle('acesso:sair', () => {
+    if (liberado) sairPendente = true;
   });
 
 // Primeiro uso, em duas etapas: preparar devolve a chave de recuperação para a tela mostrar
@@ -143,6 +189,12 @@ ipcMain.handle('acesso:cancelar', () => {
     return true;
   });
 }
+
+  // Só funciona com o app já aberto; a senha atual é conferida de novo.
+  ipcMain.handle('acesso:alterarSenha', (_e, senhaAtual, novaSenha) => {
+    if (!liberado) throw new Error('O app está trancado');
+    return seguranca.alterarSenha(senhaAtual, novaSenha);
+  });
 
 app.whenReady().then(() => {
   registrarIpcAcesso();

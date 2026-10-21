@@ -148,6 +148,8 @@ watch([situacao, busca], carregarLista);
 watch(aberto, () => {
   alteracaoPendente.value = false;
 });
+// Mantém o app informado, para o aviso valer também ao fechar a janela.
+watch(alteracaoPendente, (valor) => window.api.janela.avisarAlteracoes(valor));
 
 // Protege contra fechar o app ou recarregar a tela com alterações sem salvar.
 // Quem mostra o aviso ao usuário é o main.js (evento will-prevent-unload).
@@ -163,11 +165,14 @@ onMounted(() => {
   window.addEventListener('beforeunload', avisarAoFechar);
   window.addEventListener('keydown', aoPressionarTecla);
   window.addEventListener('resize', aoRedimensionarJanela);
+  window.addEventListener('pedir-saida', aoPedirSaida);
+  window.api.janela.aoPedirFechar(aoPedirFechar);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', aoPressionarTecla);
   window.removeEventListener('resize', aoRedimensionarJanela);
+  window.removeEventListener('pedir-saida', aoPedirSaida);
 });
 
 // Faz a navegação, ou pede confirmação antes se houver alterações sem salvar.
@@ -181,6 +186,21 @@ function confirmarSaida() {
   saidaPendente.value = null;
   alteracaoPendente.value = false;
   acao();
+}
+
+// Vem do botão "Sair" do menu do perfil. Passa pelo mesmo aviso de alterações
+// não salvas das outras navegações; confirmada a saída, tranca o app e recarrega a tela.
+function aoPedirSaida() {
+  navegar(async () => {
+    await window.api.acesso.sair();
+    window.location.reload();
+  });
+}
+
+// Vem do Alt+F4 ou do X da janela quando há alterações sem salvar.
+// Usa o mesmo aviso das outras saídas; confirmado, o app fecha de verdade.
+function aoPedirFechar() {
+  saidaPendente.value = () => window.api.janela.fecharMesmoAssim();
 }
 
 function trocarAba(nova) {

@@ -138,6 +138,14 @@ function trocarSenha(chaveBancoHex, novaSenha) {
   gravarChaves(chaves);
 }
 
+// Troca a senha pedindo a atual; devolve false se a atual estiver errada.
+function alterarSenha(senhaAtual, novaSenha) {
+  const chaveBanco = abrirComSenha(senhaAtual);
+  if (!chaveBanco) return false;
+  trocarSenha(chaveBanco, novaSenha);
+  return true;
+}
+
 module.exports = {
   existeConfiguracao,
   preparar,
@@ -145,4 +153,5 @@ module.exports = {
   abrirComSenha,
   abrirComRecuperacao,
   trocarSenha,
+  alterarSenha,
 };

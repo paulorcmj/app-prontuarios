@@ -1,12 +1,14 @@
 <script setup>
 // Perfil no topo da lateral: foto, nome e um menu suspenso com "Configurações".
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import AlterarSenha from './AlterarSenha.vue';
 
 const props = defineProps({ profissional: Object });
 const emit = defineEmits(['configuracoes']);
 
 const aberto = ref(false);
 const raiz = ref(null);
+const alterandoSenha = ref(false);
 
 const inicial = computed(() => props.profissional.nome.trim().charAt(0).toUpperCase() || '?');
 
@@ -27,6 +29,18 @@ function abrirConfiguracoes() {
   emit('configuracoes');
 }
 
+function abrirAlterarSenha() {
+  aberto.value = false;
+  alterandoSenha.value = true;
+}
+
+// O pedido vai para o Principal, que mostra o aviso de alterações não salvas
+// (o mesmo da troca de paciente) antes de sair.
+function sair() {
+  aberto.value = false;
+  window.dispatchEvent(new CustomEvent('pedir-saida'));
+}
+
 onMounted(() => document.addEventListener('click', aoClicarFora));
 onBeforeUnmount(() => document.removeEventListener('click', aoClicarFora));
 </script>
@@ -45,6 +59,11 @@ onBeforeUnmount(() => document.removeEventListener('click', aoClicarFora));
     </button>
     <div v-if="aberto" class="perfil-menu">
       <button type="button" @click="abrirConfiguracoes">Configurações</button>
+      <button type="button" @click="abrirAlterarSenha">Alterar senha</button>
+      <button type="button" @click="sair">Sair</button>
     </div>
+    <Teleport to="body">
+      <AlterarSenha v-if="alterandoSenha" @fechar="alterandoSenha = false" />
+    </Teleport>
   </div>
 </template>

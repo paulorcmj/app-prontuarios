@@ -314,6 +314,14 @@ function salvarProfissional(dados) {
     .run(nome, String(dados.crp ?? '').trim(), String(dados.email ?? '').trim(), foto);
 }
 
+// Usada ao sair e antes de trocar o arquivo do banco (carregar backup).
+function fechar() {
+  if (db) {
+    db.close();
+    db = undefined;
+  }
+}
+
 module.exports = {
   iniciar,
   criarPaciente,
@@ -334,5 +342,6 @@ module.exports = {
   valorNaData,
   obterProfissional,
   salvarProfissional,
+  fechar,
 };
 
