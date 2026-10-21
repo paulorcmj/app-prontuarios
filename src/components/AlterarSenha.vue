@@ -1,6 +1,7 @@
 <script setup>
 // Janela para trocar a senha do app. A senha atual é conferida no processo principal.
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
+import Confirmacao from './Confirmacao.vue';
 import { mensagemDeErro } from '../utilitarios.js';
 
 const emit = defineEmits(['fechar']);
@@ -9,6 +10,15 @@ const novaSenha = ref('');
 const confirmacao = ref('');
 const erro = ref('');
 const concluido = ref(false);
+const confirmandoFechar = ref(false);
+
+// Qualquer campo preenchido conta como alteração sem salvar.
+const pendente = computed(() => !!(senhaAtual.value || novaSenha.value || confirmacao.value));
+
+function pedirFechar() {
+  if (pendente.value) confirmandoFechar.value = true;
+  else emit('fechar');
+}
 
 async function salvar() {
   erro.value = '';
@@ -55,9 +65,18 @@ async function salvar() {
       </label>
       <p v-if="erro" class="erro">{{ erro }}</p>
       <div class="acoes">
-        <button type="button" @click="emit('fechar')">Cancelar</button>
+        <button type="button" @click="pedirFechar">Cancelar</button>
         <button type="submit" class="principal">Alterar</button>
       </div>
     </form>
+
+    <Confirmacao
+      v-if="confirmandoFechar"
+      texto="Há alterações que não foram salvas. Se cancelar agora, elas serão perdidas."
+      rotulo-cancelar="Continuar editando"
+      rotulo-confirmar="Descartar alterações"
+      @cancelar="confirmandoFechar = false"
+      @confirmar="emit('fechar')"
+    />
   </div>
 </template>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, nextTick, onMounted } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import Confirmacao from './Confirmacao.vue';
 import Colapsavel from './Colapsavel.vue';
 import FormSessao from './FormSessao.vue';
@@ -9,8 +9,43 @@ const props = defineProps({ pacienteId: Number });
 const emit = defineEmits(['alteracao-pendente']);
 
 const sessoes = ref([]);
-// O banco devolve em ordem cronológica; a tela mostra da mais recente para a mais antiga.
-const sessoesRecentesPrimeiro = computed(() => [...sessoes.value].reverse());
+
+// Ordem da lista. O banco devolve em ordem cronológica; a tela escolhe como mostrar.
+const ORDENS = [
+  { valor: 'recentes', rotulo: 'Mais recentes' },
+  { valor: 'antigas', rotulo: 'Mais antigas' },
+  { valor: 'modificadas', rotulo: 'Última modificação' },
+];
+const ordem = ref('recentes');
+const menuOrdemAberto = ref(false);
+const buscaRef = ref(null);
+
+const sessoesOrdenadas = computed(() => {
+  const lista = [...sessoes.value];
+  if (ordem.value === 'antigas') return lista;
+  if (ordem.value === 'modificadas') {
+    // O id desempata sessões modificadas no mesmo minuto.
+    return lista.sort(
+      (a, b) => (b.modificado_em ?? '').localeCompare(a.modificado_em ?? '') || b.id - a.id
+    );
+  }
+  return lista.reverse();
+});
+
+function escolherOrdem(valor) {
+  ordem.value = valor;
+  menuOrdemAberto.value = false;
+}
+
+// O menu de ordenação fecha ao clicar fora dele ou ao apertar Esc.
+function fecharMenuSeClicouFora(evento) {
+  if (menuOrdemAberto.value && !buscaRef.value?.contains(evento.target)) menuOrdemAberto.value = false;
+}
+
+function fecharMenuComEsc(evento) {
+  if (evento.key === 'Escape') menuOrdemAberto.value = false;
+}
+
 const busca = ref('');
 const erro = ref('');
 const excluindo = ref(null);
@@ -29,11 +64,11 @@ const edicao = ref(null);
 // Retrato dos formulários como estavam ao abrir, para saber se há texto sem salvar.
 const novaOriginal = ref('');
 const edicaoOriginal = ref('');
-const alteracaoPendente = computed(
-  () =>
-    (novaAberta.value && JSON.stringify(nova.value) !== novaOriginal.value) ||
-    (edicao.value !== null && JSON.stringify(edicao.value) !== edicaoOriginal.value)
+const novaAlterada = computed(() => novaAberta.value && JSON.stringify(nova.value) !== novaOriginal.value);
+const edicaoAlterada = computed(
+  () => edicao.value !== null && JSON.stringify(edicao.value) !== edicaoOriginal.value
 );
+const alteracaoPendente = computed(() => novaAlterada.value || edicaoAlterada.value);
 // A ficha repassa o aviso ao App.vue, que protege a troca de tela e o fechamento do app.
 watch(alteracaoPendente, (pendente) => emit('alteracao-pendente', pendente));
 
@@ -50,7 +85,17 @@ async function carregar() {
   sessoes.value = await window.api.sessoes.listar(props.pacienteId, busca.value);
 }
 
-onMounted(carregar);
+onMounted(() => {
+  carregar();
+  document.addEventListener('click', fecharMenuSeClicouFora);
+  document.addEventListener('keydown', fecharMenuComEsc);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', fecharMenuSeClicouFora);
+  document.removeEventListener('keydown', fecharMenuComEsc);
+});
+
 watch(busca, carregar);
 
 // Rola só o necessário para a sessão ficar inteira à vista; se já está, não mexe.
@@ -84,11 +129,16 @@ function fecharNova() {
 async function salvarNova() {
   erro.value = '';
   try {
-    await window.api.sessoes.criar(props.pacienteId, paraBanco(nova.value));
+    const id = await window.api.sessoes.criar(props.pacienteId, paraBanco(nova.value));
     fecharNova();
     // Limpa a busca para a sessão salva não ficar escondida pelo filtro.
     busca.value = '';
     await carregar();
+    // A sessão criada já nasce aberta.
+    if (id) {
+      abertas.value[id] = true;
+      mostrarSessao(id);
+    }
   } catch (e) {
     erro.value = mensagemDeErro(e);
   }
@@ -136,17 +186,52 @@ async function excluir() {
   <Colapsavel v-model:aberto="secaoAberta" class="bloco">
     <template #titulo>Sessões <span class="contagem">{{ sessoes.length }}</span></template>
     <template #acoes>
-      <input v-model="busca" type="search" aria-label="Buscar nas sessões" placeholder="Buscar nas sessões" />
+      <div ref="buscaRef" class="busca-sessoes">
+        <input v-model="busca" type="search" aria-label="Buscar nas sessões" placeholder="Buscar nas sessões" />
+        <button
+          type="button"
+          class="botao-ordenar"
+          title="Ordenar sessões"
+          aria-label="Ordenar sessões"
+          aria-haspopup="menu"
+          :aria-expanded="menuOrdemAberto"
+          @click="menuOrdemAberto = !menuOrdemAberto"
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M4 7h16M7 12h10M10 17h4" />
+          </svg>
+        </button>
+        <div v-if="menuOrdemAberto" class="ordem-menu">
+          <button
+            v-for="o in ORDENS"
+            :key="o.valor"
+            type="button"
+            :class="{ escolhida: ordem === o.valor }"
+            @click="escolherOrdem(o.valor)"
+          >
+            {{ o.rotulo }}
+            <svg v-if="ordem === o.valor" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 8.5l3.5 3.5L13 4.5" />
+            </svg>
+          </button>
+        </div>
+      </div>
       <button type="button" class="principal" @click="abrirNova">Nova sessão</button>
     </template>
 
     <div v-if="novaAberta" ref="novaRef">
-      <FormSessao v-model="nova" rotulo-salvar="Adicionar sessão" @salvar="salvarNova" @cancelar="fecharNova" />
+      <FormSessao
+        v-model="nova"
+        rotulo-salvar="Adicionar sessão"
+        :pendente="novaAlterada"
+        @salvar="salvarNova"
+        @cancelar="fecharNova"
+      />
     </div>
     <p v-if="erro" class="erro">{{ erro }}</p>
 
     <ol v-if="sessoes.length" class="sessoes">
-      <li v-for="s in sessoesRecentesPrimeiro" :id="`sessao-${s.id}`" :key="s.id">
+      <li v-for="s in sessoesOrdenadas" :id="`sessao-${s.id}`" :key="s.id">
         <Colapsavel
           class="sessao"
           :class="{ editando: edicao?.id === s.id }"
@@ -162,6 +247,7 @@ async function excluir() {
             v-if="edicao?.id === s.id"
             v-model="edicao"
             rotulo-salvar="Salvar alterações"
+            :pendente="edicaoAlterada"
             @salvar="salvarEdicao"
             @cancelar="edicao = null"
           />
@@ -175,9 +261,9 @@ async function excluir() {
               <p class="texto anotacoes">{{ s.anotacoes }}</p>
             </div>
             <div class="acoes">
-              <!-- Só uma sessão é editada por vez, para não perder texto digitado. -->
-              <button type="button" :disabled="edicao !== null" @click="editar(s)">Editar</button>
               <button type="button" class="perigo" @click="excluindo = s">Excluir</button>
+              <!-- Só uma sessão é editada por vez, para não perder texto digitado. -->
+              <button type="button" class="contorno" :disabled="edicao !== null" @click="editar(s)">Editar</button>
             </div>
           </div>
         </Colapsavel>
@@ -193,3 +279,10 @@ async function excluir() {
     />
   </Colapsavel>
 </template>
+
+<style scoped>
+/* Excluir e Editar ficam na ponta direita da sessão. */
+.sessao-corpo .acoes {
+  justify-content: flex-end;
+}
+</style>

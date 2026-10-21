@@ -275,8 +275,7 @@ button.link:hover:not(:disabled) {
   overflow-wrap: anywhere;
 }
 
-/* Caixinha no estilo do app. O estilo global de "input" (largura total, borda, fundo)
-   também pegaria o checkbox, por isso ele é redefinido aqui. */
+/* A caixinha em si é estilizada no estilo.css, igual em todo o app. */
 .confirmar {
   flex-direction: row;
   align-items: center;
@@ -284,24 +283,6 @@ button.link:hover:not(:disabled) {
   font-size: 14px;
   color: var(--texto);
   cursor: pointer;
-}
-.confirmar input {
-  appearance: none;
-  flex: none;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: 1px solid var(--borda-forte);
-  border-radius: 6px;
-  background: var(--campo);
-  cursor: pointer;
-}
-.confirmar input:checked {
-  border-color: var(--roxo);
-  background: var(--roxo) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%231a1230' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 8.5l3.5 3.5L13 4.5'/%3E%3C/svg%3E") center / 14px no-repeat;
-}
-.confirmar input:focus-visible {
-  border-color: var(--roxo);
 }
 
 .justificado {

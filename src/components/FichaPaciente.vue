@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import Confirmacao from './Confirmacao.vue';
 import Colapsavel from './Colapsavel.vue';
 import CampoValor from './CampoValor.vue';
+import CampoMascara from './CampoMascara.vue';
 import Sessoes from './Sessoes.vue';
 import Responsavel from './Responsavel.vue';
 import { reaisParaCentavos, centavosParaCampo, mensagemDeErro } from '../utilitarios.js';
@@ -27,16 +28,20 @@ const confirmandoExclusao = ref(false);
 const editando = ref(novo);
 const dadosAbertos = ref(true);
 
+// Erros mostrados embaixo de cada campo (o erro geral, no topo, fica para as falhas do banco).
+const erroNome = ref('');
+const vazioErrosValor = () => ({ valor: '', data: '' });
+const errosValor = ref(vazioErrosValor());
+
 // Seção do responsável: tem botões próprios, mas o paciente novo grava os dados dela junto com a ficha.
 const responsavelRef = ref(null);
 const responsavelPendente = ref(false);
 
 // Menu "Gerar PDF": fecha ao escolher uma opção e ao clicar fora.
 const menuPdfAberto = ref(false);
-const raizPdf = ref(null);
 
 function aoClicarFora(evento) {
-  if (raizPdf.value && !raizPdf.value.contains(evento.target)) menuPdfAberto.value = false;
+  if (!evento.target.closest('.menu-pdf')) menuPdfAberto.value = false;
 }
 
 // Histórico de valores (o mais recente primeiro) e os dois campos de valor da ficha.
@@ -70,6 +75,28 @@ const pendente = computed(
 
 // O App.vue usa isso para proteger a saída da ficha.
 watch(pendente, (valor) => emit('alteracao-pendente', valor));
+
+// O erro de um campo some assim que o usuário mexe nele.
+watch(() => ficha.value.nome_completo, () => {
+  erroNome.value = '';
+});
+watch([valorCampo, dataCampo], () => {
+  errosValor.value = vazioErrosValor();
+});
+
+// Ação que ficou esperando a resposta do aviso de alterações sem salvar (cancelar a edição, arquivar).
+const descarte = ref(null);
+
+function comAviso(acao, temAlteracao) {
+  if (temAlteracao) descarte.value = acao;
+  else acao();
+}
+
+function confirmarDescarte() {
+  const acao = descarte.value;
+  descarte.value = null;
+  acao();
+}
 
 function restaurarCampoValor() {
   valorCampo.value = valorSalvo.value;
@@ -110,20 +137,38 @@ async function executar(acao) {
   }
 }
 
+// O nome é conferido aqui (e não por "required") para o aviso aparecer embaixo do campo,
+// mesmo com a seção recolhida: nesse caso ela é aberta.
+function conferirNome(dados) {
+  erroNome.value = dados.nome_completo.trim() ? '' : 'O nome do paciente é obrigatório';
+  if (erroNome.value) dadosAbertos.value = true;
+  return !erroNome.value;
+}
+
 // Valor e data "a partir de" andam juntos: ou os dois preenchidos, ou nenhum.
-// Devolve null quando não há valor novo a registrar.
+// Devolve null se algo estiver errado (a mensagem fica embaixo do campo) ou { novo }, onde
+// "novo" é o valor a registrar, ou null quando não há nada novo.
 function conferirValor() {
+  errosValor.value = vazioErrosValor();
   const texto = valorCampo.value.trim();
   const data = dataCampo.value;
-  if (!texto && !data) return null;
-  if (!texto || !data) {
-    throw new Error('Preencha o valor e a data "a partir de", ou deixe os dois vazios');
+  if (!texto && !data) return { novo: null };
+  if (!texto) {
+    errosValor.value.valor = 'Preencha o valor ou apague a data';
+    return null;
+  }
+  if (!data) {
+    errosValor.value.data = 'Preencha a data ou apague o valor';
+    return null;
   }
   const centavos = reaisParaCentavos(texto);
-  if (centavos === null) throw new Error('Digite o valor em reais, por exemplo 150,00');
+  if (centavos === null) {
+    errosValor.value.valor = 'Valor inválido';
+    return null;
+  }
   // Igual ao que já está salvo: não cria linha repetida no histórico.
-  if (atual.value && centavos === atual.value.valor && data === atual.value.a_partir_de) return null;
-  return { centavos, data };
+  if (atual.value && centavos === atual.value.valor && data === atual.value.a_partir_de) return { novo: null };
+  return { novo: { centavos, data } };
 }
 
 function iniciarEdicao() {
@@ -136,11 +181,12 @@ function salvar() {
   executar(async () => {
     // A cópia ({ ...ficha }) tira o proxy do Vue, que o IPC não consegue enviar.
     const dados = { ...ficha.value };
-    // O valor é conferido antes de gravar, para não ficar um cadastro pela metade.
-    const valorNovo = conferirValor();
-    // O mesmo vale para o responsável de um paciente novo: confere antes de criar o paciente.
+    // Tudo é conferido antes de gravar, para não ficar um cadastro pela metade.
+    const nomeOk = conferirNome(dados);
+    const conferido = conferirValor();
+    if (!nomeOk || !conferido) return;
+    const valorNovo = conferido.novo;
     const comResponsavel = novo && dados.menor_de_idade && responsavelRef.value;
-    if (comResponsavel) responsavelRef.value.conferir();
 
     if (!novo) {
       await window.api.pacientes.atualizar(props.pacienteId, dados);
@@ -171,6 +217,8 @@ function salvar() {
 function cancelarEdicao() {
   executar(async () => {
     await carregarFicha();
+    erroNome.value = '';
+    errosValor.value = vazioErrosValor();
     editando.value = false;
   });
 }
@@ -222,52 +270,45 @@ function excluir() {
 </script>
 
 <template>
-  <form class="ficha" @submit.prevent="salvar">
+  <form class="ficha" novalidate @submit.prevent="salvar">
     <header class="ficha-topo">
       <h2>{{ novo ? 'Novo paciente' : nomeSalvo }}</h2>
-      <div class="acoes">
-        <!-- As chaves impedem o Vue de reaproveitar o mesmo botão: o clique em
-             "Editar" viraria um envio do formulário ao trocar o tipo do botão. -->
-        <template v-if="editando" key="edicao">
-          <button type="submit" class="principal">Salvar</button>
-          <button v-if="!novo" type="button" @click="cancelarEdicao">Cancelar</button>
-        </template>
-        <template v-else key="leitura">
-          <button type="button" class="principal" @click="iniciarEdicao">Editar</button>
-          <div ref="raizPdf" class="menu-pdf">
-            <button type="button" aria-haspopup="menu" :aria-expanded="menuPdfAberto" @click="menuPdfAberto = !menuPdfAberto">Gerar PDF</button>
-            <div v-if="menuPdfAberto" class="pdf-menu">
-              <button type="button" @click="gerarPdfPaciente">PDF do paciente</button>
-              <button type="button" @click="gerarPdfAnalista">PDF do analista</button>
-            </div>
+      <!-- Excluir e Arquivar ficam visíveis também durante a edição; o Gerar PDF some. -->
+      <div v-if="!novo" class="acoes">
+        <button type="button" class="perigo" @click="confirmandoExclusao = true">Excluir</button>
+        <button v-if="situacao === 'ativo'" type="button" @click="comAviso(arquivar, pendente)">Arquivar</button>
+        <button v-else type="button" @click="comAviso(desarquivar, pendente)">Desarquivar</button>
+        <div v-if="!editando" class="menu-pdf">
+          <button type="button" class="principal" aria-haspopup="menu" :aria-expanded="menuPdfAberto" @click="menuPdfAberto = !menuPdfAberto">Gerar PDF</button>
+          <div v-if="menuPdfAberto" class="pdf-menu">
+            <button type="button" @click="gerarPdfPaciente">PDF do paciente</button>
+            <button type="button" @click="gerarPdfAnalista">PDF do analista</button>
           </div>
-          <button v-if="situacao === 'ativo'" type="button" @click="arquivar">Arquivar</button>
-          <button v-else type="button" @click="desarquivar">Desarquivar</button>
-          <button type="button" class="perigo" @click="confirmandoExclusao = true">Excluir</button>
-        </template>
+        </div>
       </div>
     </header>
 
     <p v-if="erro" class="erro">{{ erro }}</p>
 
     <Colapsavel v-model:aberto="dadosAbertos" titulo="Dados do paciente">
-      <!-- O nome é conferido pelo banco, e não por "required": com a seção recolhida
-           o navegador bloquearia o envio sem mostrar nada. -->
       <div class="grade">
         <fieldset :disabled="!editando">
           <label class="largo">Nome completo
             <input v-model="ficha.nome_completo" />
+            <span v-if="erroNome" class="erro">{{ erroNome }}</span>
           </label>
           <label>CPF
-            <input v-model="ficha.cpf" />
+            <CampoMascara v-model="ficha.cpf" mascara="###.###.###-##" />
           </label>
-          <label>Data de nascimento
-            <input v-model="ficha.data_nascimento" type="date" />
-          </label>
-          <label class="largo marcar">
-            <input v-model="ficha.menor_de_idade" type="checkbox" />
-            Paciente menor de idade
-          </label>
+          <div class="coluna">
+            <label>Data de nascimento
+              <input v-model="ficha.data_nascimento" type="date" />
+            </label>
+            <label class="marcar">
+              <input v-model="ficha.menor_de_idade" type="checkbox" />
+              Paciente menor de idade
+            </label>
+          </div>
           <label>Cidade/Estado
             <input v-model="ficha.cidade_estado" />
           </label>
@@ -275,7 +316,7 @@ function excluir() {
             <input v-model="ficha.data_inicio" type="date" />
           </label>
           <label>Celular
-            <input v-model="ficha.celular" />
+            <CampoMascara v-model="ficha.celular" mascara="(##) #####-####" />
           </label>
           <label>Contato de emergência (nome)
             <input v-model="ficha.contato_emergencia_nome" />
@@ -287,13 +328,14 @@ function excluir() {
           v-model:data="dataCampo"
           :historico="historico"
           :editando="editando"
+          :erros="errosValor"
           @removido="aposRemoverValor"
           @erro="erro = $event"
         />
 
         <fieldset :disabled="!editando">
           <label>Contato de emergência (número)
-            <input v-model="ficha.contato_emergencia_telefone" />
+            <CampoMascara v-model="ficha.contato_emergencia_telefone" mascara="(##) #####-####" />
           </label>
           <label class="largo">Queixa inicial
             <textarea v-model="ficha.queixa_inicial" />
@@ -306,6 +348,16 @@ function excluir() {
           </label>
         </fieldset>
       </div>
+
+      <!-- As chaves impedem o Vue de reaproveitar o mesmo botão: o clique em
+           "Editar" viraria um envio do formulário ao trocar o tipo do botão. -->
+      <div class="acoes rodape">
+        <template v-if="editando">
+          <button v-if="!novo" key="cancelar" type="button" @click="comAviso(cancelarEdicao, alterado)">Cancelar</button>
+          <button key="salvar" type="submit" class="principal">Salvar</button>
+        </template>
+        <button v-else key="editar" type="button" class="principal" @click="iniciarEdicao">Editar</button>
+      </div>
     </Colapsavel>
 
     <Confirmacao
@@ -313,6 +365,14 @@ function excluir() {
       texto="Excluir este paciente? As sessões, os valores e os dados do responsável também serão excluídos."
       @cancelar="confirmandoExclusao = false"
       @confirmar="excluir"
+    />
+    <Confirmacao
+      v-if="descarte"
+      texto="Há alterações que não foram salvas. Se continuar, elas serão perdidas."
+      rotulo-cancelar="Continuar editando"
+      rotulo-confirmar="Descartar alterações"
+      @cancelar="descarte = null"
+      @confirmar="confirmarDescarte"
     />
   </form>
   <!-- Fora do formulário: a seção tem botões próprios e um formulário não pode ficar dentro de outro. -->
@@ -326,7 +386,14 @@ function excluir() {
 </template>
 
 <style scoped>
-/* A caixa de menor de idade ocupa a linha toda e fica ao lado do texto, não em cima. */
+/* A data de nascimento e a caixa de menor de idade formam uma coluna só, a caixa logo embaixo da data. */
+.coluna {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* A caixa fica ao lado do texto, não em cima. */
 .marcar {
   flex-direction: row;
   align-items: center;
@@ -334,8 +401,10 @@ function excluir() {
   font-size: 14px;
   color: var(--texto);
 }
-.marcar input {
-  width: auto;
-  accent-color: var(--roxo);
+
+/* O menu de PDF fica na ponta direita da linha; abrir para a direita estouraria a janela. */
+.pdf-menu {
+  left: auto;
+  right: 0;
 }
 </style>

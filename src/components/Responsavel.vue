@@ -4,12 +4,14 @@
 // os dados ficam na tela e a ficha chama salvarPara() depois de criar o paciente.
 import { ref, shallowRef, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import Colapsavel from './Colapsavel.vue';
+import CampoMascara from './CampoMascara.vue';
+import Confirmacao from './Confirmacao.vue';
 import { mensagemDeErro } from '../utilitarios.js';
 
 const props = defineProps({ pacienteId: [Number, String] });
 const emit = defineEmits(['alteracao-pendente']);
 
-const CAMPOS = ['nome_completo', 'data_nascimento', 'cpf', 'endereco', 'cidade_estado'];
+const CAMPOS = ['nome_completo', 'data_nascimento', 'cpf', 'endereco', 'cidade_estado', 'contato'];
 const vazio = () => Object.fromEntries(CAMPOS.map((c) => [c, '']));
 
 const novo = props.pacienteId === 'novo';
@@ -19,6 +21,7 @@ const editando = ref(novo);
 // Já existe um responsável salvo para este paciente?
 const existe = ref(false);
 const erro = ref('');
+const confirmandoCancelamento = ref(false);
 
 // O termo salvo no banco (só nome e data) e a mudança que espera o Salvar:
 // null (nada mudou), 'remover' ou o arquivo escolhido, com os bytes.
@@ -71,40 +74,36 @@ async function executar(acao) {
   }
 }
 
-function conferirNome() {
-  if (!dados.value.nome_completo.trim()) throw new Error('O nome do responsável é obrigatório');
-}
-
 function temConteudo() {
   return CAMPOS.some((c) => dados.value[c].trim()) || termoPendente.value !== null;
 }
 
 function salvar() {
   executar(async () => {
-    conferirNome();
     // A cópia ({ ...dados }) tira o proxy do Vue, que o IPC não consegue enviar.
     await window.api.responsavel.salvar(props.pacienteId, { ...dados.value }, termoPendente.value);
     await carregar();
   });
 }
 
-function cancelar() {
+// Descarta o que foi digitado e volta ao que está salvo; com alterações, pede confirmação antes.
+function pedirCancelamento() {
+  if (pendente.value) confirmandoCancelamento.value = true;
+  else executar(carregar);
+}
+
+function descartar() {
+  confirmandoCancelamento.value = false;
   executar(carregar);
 }
 
-// Usadas pela ficha ao criar um paciente novo. Se a seção estiver vazia, não há nada a gravar;
-// se tiver algo, o nome é obrigatório e é conferido antes de o paciente ser criado.
-function conferir() {
-  if (temConteudo()) conferirNome();
-}
-
+// Usada pela ficha ao criar um paciente novo. Se a seção estiver vazia, não há nada a gravar.
 async function salvarPara(id) {
   if (!temConteudo()) return;
-  conferirNome();
   await window.api.responsavel.salvar(id, { ...dados.value }, termoPendente.value);
 }
 
-defineExpose({ conferir, salvarPara });
+defineExpose({ salvarPara });
 
 // O arquivo só é lido aqui; quem grava no banco é o Salvar da seção.
 function anexar() {
@@ -131,15 +130,11 @@ function gerarTermo() {
 
 <template>
   <div class="bloco">
-    <Colapsavel v-model:aberto="aberto" titulo="Responsável">
-      <template v-if="!novo" #acoes>
+    <!-- "sem-quebra": o título e o botão do cabeçalho ficam sempre na mesma linha. -->
+    <Colapsavel v-model:aberto="aberto" class="sem-quebra" titulo="Dados do responsável">
+      <template v-if="!novo && !editando" #acoes>
         <div class="acoes">
-          <template v-if="editando">
-            <button key="salvar" type="button" class="principal" @click="salvar">Salvar</button>
-            <button v-if="existe" key="cancelar" type="button" @click="cancelar">Cancelar</button>
-          </template>
-          <button v-else key="editar" type="button" class="principal" @click="editando = true">Editar</button>
-          <button type="button" @click="gerarTermo">Gerar termo</button>
+          <button type="button" class="principal" @click="gerarTermo">Gerar termo</button>
         </div>
       </template>
 
@@ -149,17 +144,20 @@ function gerarTermo() {
         <label class="largo">Nome completo do responsável
           <input v-model="dados.nome_completo" :disabled="!editando" />
         </label>
+        <label>CPF do responsável
+          <CampoMascara v-model="dados.cpf" mascara="###.###.###-##" :disabled="!editando" />
+        </label>
         <label>Data de nascimento do responsável
           <input v-model="dados.data_nascimento" type="date" :disabled="!editando" />
         </label>
-        <label>CPF do responsável
-          <input v-model="dados.cpf" :disabled="!editando" />
+        <label>Cidade/Estado do responsável
+          <input v-model="dados.cidade_estado" :disabled="!editando" />
+        </label>
+        <label>Contato do responsável
+          <CampoMascara v-model="dados.contato" mascara="(##) #####-####" :disabled="!editando" />
         </label>
         <label class="largo">Endereço completo do responsável
           <input v-model="dados.endereco" :disabled="!editando" />
-        </label>
-        <label class="largo">Cidade/Estado do responsável
-          <input v-model="dados.cidade_estado" :disabled="!editando" />
         </label>
 
         <div class="largo termo">
@@ -183,7 +181,25 @@ function gerarTermo() {
           </div>
         </div>
       </div>
+
+      <!-- Um paciente novo grava o responsável junto com a ficha, então não tem botões aqui. -->
+      <div v-if="!novo" class="acoes rodape">
+        <template v-if="editando">
+          <button v-if="existe" key="cancelar" type="button" @click="pedirCancelamento">Cancelar</button>
+          <button key="salvar" type="button" class="principal" @click="salvar">Salvar</button>
+        </template>
+        <button v-else key="editar" type="button" class="principal" @click="editando = true">Editar</button>
+      </div>
     </Colapsavel>
+
+    <Confirmacao
+      v-if="confirmandoCancelamento"
+      texto="Há alterações que não foram salvas. Se cancelar agora, elas serão perdidas."
+      rotulo-cancelar="Continuar editando"
+      rotulo-confirmar="Descartar alterações"
+      @cancelar="confirmandoCancelamento = false"
+      @confirmar="descartar"
+    />
   </div>
 </template>
 

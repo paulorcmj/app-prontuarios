@@ -10,7 +10,7 @@ const CAMPOS_PACIENTE = [
   'contato_emergencia_telefone', 'adendos', 'anotacoes_caso', 'menor_de_idade',
 ];
 
-const CAMPOS_RESPONSAVEL = ['nome_completo', 'data_nascimento', 'cpf', 'endereco', 'cidade_estado'];
+const CAMPOS_RESPONSAVEL = ['nome_completo', 'data_nascimento', 'cpf', 'endereco', 'cidade_estado', 'contato'];
 
 // Termo de autorização assinado: extensões aceitas (com o tipo de cada uma) e tamanho máximo.
 // O arquivo fica dentro do banco, então entra no backup e continua protegido pela senha.
@@ -109,6 +109,15 @@ const MIGRACOES = [
 
   CREATE INDEX idx_responsaveis_paciente ON responsaveis (paciente_id);
   `,
+
+  // Versão 8: contato (celular) do responsável.
+  `ALTER TABLE responsaveis ADD COLUMN contato TEXT;`,
+  // Versão 9: última modificação da sessão, usada para ordenar a lista de sessões.
+  // As sessões que já existem recebem a hora da migração.
+  `
+  ALTER TABLE sessoes ADD COLUMN modificado_em TEXT;
+  UPDATE sessoes SET modificado_em = strftime('%Y-%m-%d %H:%M', 'now', 'localtime');
+  `,
 ];
 
 let db;
@@ -184,8 +193,10 @@ function criarPaciente(dados) {
   const colunas = CAMPOS_PACIENTE.join(', ');
   const valores = CAMPOS_PACIENTE.map((c) => '@' + c).join(', ');
   const r = db
-    .prepare(`INSERT INTO pacientes (${colunas}, modificado_em) VALUES (${valores}, @modificado_em)`)
-    .run({ ...ficha, modificado_em: agora() });
+    .prepare(
+      'INSERT INTO sessoes (paciente_id, data_hora, titulo, relato, anotacoes, modificado_em) VALUES (?, ?, ?, ?, ?, ?)'
+    )
+    .run(pacienteId, dados.data_hora, titulo, dados.relato ?? null, dados.anotacoes ?? null, agora());
   return Number(r.lastInsertRowid);
 }
 
@@ -278,8 +289,8 @@ function listarSessoes(pacienteId, busca) {
 function atualizarSessao(id, dados) {
   validarDataHora(dados.data_hora);
   const titulo = validarTitulo(dados.titulo);
-  db.prepare('UPDATE sessoes SET data_hora = ?, titulo = ?, relato = ?, anotacoes = ? WHERE id = ?')
-    .run(dados.data_hora, titulo, dados.relato ?? null, dados.anotacoes ?? null, id);
+  db.prepare('UPDATE sessoes SET data_hora = ?, titulo = ?, relato = ?, anotacoes = ?, modificado_em = ? WHERE id = ?')
+    .run(dados.data_hora, titulo, dados.relato ?? null, dados.anotacoes ?? null, agora(), id);
   const pacienteId = pacienteDaSessao(id);
   if (pacienteId) tocar(pacienteId);
 }
@@ -342,7 +353,7 @@ function valorNaData(pacienteId, data) {
 function obterResponsavel(pacienteId) {
   return db
     .prepare(
-      `SELECT id, nome_completo, data_nascimento, cpf, endereco, cidade_estado,
+      `SELECT id, nome_completo, data_nascimento, cpf, endereco, cidade_estado, contato,
               termo_nome, termo_tipo, termo_anexado_em
        FROM responsaveis WHERE paciente_id = ? ORDER BY id LIMIT 1`
     )
@@ -351,11 +362,12 @@ function obterResponsavel(pacienteId) {
 
 // Grava o responsável do paciente (cria ou atualiza) e, se vier, mexe no termo.
 // O parâmetro termo tem três formas: null mantém o que está salvo, 'remover' apaga o arquivo
-// e um objeto { nome, tipo, dados } grava o arquivo novo. Só o nome do responsável é obrigatório.
+// e um objeto { nome, tipo, dados } grava o arquivo novo. Nenhum campo é obrigatório.
 function salvarResponsavel(pacienteId, dados, termo) {
   const campos = {};
   for (const campo of CAMPOS_RESPONSAVEL) campos[campo] = String(dados[campo] ?? '').trim() || null;
-  if (!campos.nome_completo) throw new Error('O nome do responsável é obrigatório');
+  // A coluna do nome não aceita nulo: sem nome, grava texto vazio.
+  campos.nome_completo ??= '';
 
   let arquivo = null;
   if (termo && termo !== 'remover') {

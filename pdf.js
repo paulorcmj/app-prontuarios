@@ -11,7 +11,7 @@ const banco = require('./banco');
 function lerProfissional() {
   const profissional = banco.obterProfissional();
   if (!profissional.nome.trim()) {
-    throw new Error('Preencha seus dados em "Meus dados" antes de gerar o PDF');
+    throw new Error('Preencha seus dados no perfil para gerar o PDF');
   }
   return profissional;
 }
@@ -108,6 +108,7 @@ function responsavelHtml(paciente, responsavel, comTermo) {
     linha('CPF', responsavel.cpf),
     linha('Endereço', responsavel.endereco),
     linha('Cidade/Estado', responsavel.cidade_estado),
+    linha('Contato', responsavel.contato),
   ];
   if (comTermo) {
     const termo = responsavel.termo_nome ? `Anexado em ${dataBR(responsavel.termo_anexado_em)}` : 'Não anexado';

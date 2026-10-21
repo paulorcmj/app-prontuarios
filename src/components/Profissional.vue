@@ -1,19 +1,36 @@
 <script setup>
 // Janela de configurações: foto, nome, CRP e e-mail do profissional.
 // Nome, CRP e e-mail vão para o cabeçalho dos PDFs; a foto só aparece no perfil da lateral.
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
+import Confirmacao from './Confirmacao.vue';
+import CampoMascara from './CampoMascara.vue';
 import { mensagemDeErro } from '../utilitarios.js';
 
 const emit = defineEmits(['fechar', 'salvo']);
 const dados = ref({ nome: '', crp: '', email: '', foto: '' });
 const erro = ref('');
+const erroEmail = ref('');
 const inicial = computed(() => dados.value.nome.trim().charAt(0).toUpperCase() || '?');
 
 const TAMANHO_FOTO = 256;
 
+// Retrato dos dados como foram carregados, para saber se há alteração sem salvar.
+// Fica nulo até os dados chegarem, para o Cancelar não estranhar antes disso.
+const retratoSalvo = ref(null);
+const pendente = computed(
+  () => retratoSalvo.value !== null && JSON.stringify(dados.value) !== retratoSalvo.value
+);
+const confirmandoFechar = ref(false);
+
+// O erro do e-mail some assim que o usuário mexe no campo.
+watch(() => dados.value.email, () => {
+  erroEmail.value = '';
+});
+
 onMounted(async () => {
   try {
     dados.value = await window.api.profissional.obter();
+    retratoSalvo.value = JSON.stringify(dados.value);
   } catch (e) {
     erro.value = mensagemDeErro(e);
   }
@@ -47,8 +64,20 @@ async function escolherFoto(evento) {
   }
 }
 
+// Com alterações sem salvar, o Cancelar pede confirmação antes de fechar.
+function pedirFechar() {
+  if (pendente.value) confirmandoFechar.value = true;
+  else emit('fechar');
+}
+
 async function salvar() {
   erro.value = '';
+  // O e-mail é conferido aqui (e não pelo navegador) para o aviso aparecer embaixo do campo.
+  const email = dados.value.email.trim();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    erroEmail.value = 'E-mail inválido';
+    return;
+  }
   try {
     await window.api.profissional.salvar({ ...dados.value });
     emit('salvo');
@@ -61,7 +90,7 @@ async function salvar() {
 
 <template>
   <div class="fundo">
-    <form class="janela janela-dados" @submit.prevent="salvar">
+    <form class="janela janela-dados" novalidate @submit.prevent="salvar">
       <h3>Configurações</h3>
       <p class="vazio">O nome, o CRP e o e-mail aparecem no cabeçalho dos PDFs.</p>
 
@@ -82,16 +111,26 @@ async function salvar() {
         <input v-model="dados.nome" />
       </label>
       <label>CRP
-        <input v-model="dados.crp" />
+        <CampoMascara v-model="dados.crp" mascara="##/######" />
       </label>
       <label>E-mail
         <input v-model="dados.email" type="email" />
+        <span v-if="erroEmail" class="erro">{{ erroEmail }}</span>
       </label>
       <p v-if="erro" class="erro">{{ erro }}</p>
       <div class="acoes">
-        <button type="button" @click="emit('fechar')">Cancelar</button>
+        <button type="button" @click="pedirFechar">Cancelar</button>
         <button type="submit" class="principal">Salvar</button>
       </div>
     </form>
+
+    <Confirmacao
+      v-if="confirmandoFechar"
+      texto="Há alterações que não foram salvas. Se cancelar agora, elas serão perdidas."
+      rotulo-cancelar="Continuar editando"
+      rotulo-confirmar="Descartar alterações"
+      @cancelar="confirmandoFechar = false"
+      @confirmar="emit('fechar')"
+    />
   </div>
 </template>

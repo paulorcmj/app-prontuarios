@@ -3,7 +3,8 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import Confirmacao from './Confirmacao.vue';
 import { dataBR, reais, mensagemDeErro } from '../utilitarios.js';
 
-defineProps({ historico: Array, editando: Boolean });
+// "erros" traz as mensagens de cada campo ({ valor, data }), mostradas embaixo dele.
+defineProps({ historico: Array, editando: Boolean, erros: Object });
 const emit = defineEmits(['removido', 'erro']);
 
 const valor = defineModel('valor');
@@ -51,7 +52,7 @@ async function remover() {
     <div class="campo">
       <label for="campo-valor">Valor da sessão (R$)</label>
       <div class="campo-com-botao">
-        <input id="campo-valor" v-model="valor" inputmode="decimal" placeholder="150,00" :disabled="!editando" />
+        <input id="campo-valor" v-model="valor" inputmode="decimal" placeholder="R$ 0,00" :disabled="!editando" />
         <span ref="menuRef" class="menu-historico">
           <button
             type="button"
@@ -75,11 +76,13 @@ async function remover() {
           </ul>
         </span>
       </div>
+      <p v-if="erros?.valor" class="erro">{{ erros.valor }}</p>
     </div>
 
     <div class="campo">
       <label for="campo-data">A partir de</label>
       <input id="campo-data" v-model="data" type="date" :disabled="!editando" />
+      <p v-if="erros?.data" class="erro">{{ erros.data }}</p>
     </div>
 
     <Confirmacao
