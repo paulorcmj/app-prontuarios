@@ -1,20 +1,53 @@
 {
   "name": "app-prontuarios",
-  "version": "0.1.0",
-  "description": "",
+  "version": "1.0.0",
+  "description": "App local de prontuários para psicanalistas",
+  "author": "Paulo Roberto Carvalho Machado Júnior",
+  "license": "ISC",
   "main": "main.js",
+  "type": "commonjs",
   "scripts": {
     "start": "electron .",
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "dist": "vite build && electron-builder --win nsis --publish never"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
+  "build": {
+    "appId": "com.paulorcmj.prontuarios",
+    "productName": "Prontuários",
+    "directories": {
+      "output": "out"
+    },
+    "files": [
+      "*.js",
+      "dist/**/*"
+    ],
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "npmRebuild": false,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "Prontuarios-Setup-${version}.${ext}"
+    }
+  },
   "devDependencies": {
     "@vitejs/plugin-vue": "6.0.10",
     "electron": "44.9.0",
+    "electron-builder": "26.15.3",
     "vite": "8.3.4",
     "vue": "3.5.44"
   },

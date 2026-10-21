@@ -9,6 +9,10 @@ const { gerarPdfPaciente, gerarPdfAnalista } = require('./pdf');
 const seguranca = require('./seguranca');
 const backup = require('./backup');
 
+// A pasta de dados é a mesma em desenvolvimento e no app instalado, qualquer que seja
+// o nome de exibição do programa. Tem que vir antes de qualquer uso do userData.
+app.setPath('userData', path.join(app.getPath('appData'), 'app-prontuarios'));
+
 // Os canais que usam o banco só são registrados depois que ele abre.
 // Enquanto o app está trancado, a tela só consegue falar com os canais "acesso:" e de carregar backup.
 let liberado = false;
