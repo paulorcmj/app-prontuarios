@@ -166,7 +166,7 @@ function htmlAnalista(paciente, sessoes, valores, responsavel, profissional) {
     linha('Data de nascimento', dataBR(paciente.data_nascimento)),
     linha('Cidade/Estado', paciente.cidade_estado),
     linha('Início do atendimento', dataBR(paciente.data_inicio)),
-    linha('Celular', paciente.celular),
+    linha('Contato', paciente.celular),
     linha('Contato de emergência (nome)', paciente.contato_emergencia_nome),
     linha('Contato de emergência (número)', paciente.contato_emergencia_telefone),
     linha('Valor da sessão', atual ? `${formatarValor(atual.valor)} (a partir de ${dataBR(atual.a_partir_de)})` : ''),

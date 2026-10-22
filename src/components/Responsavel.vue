@@ -179,7 +179,7 @@ function gerarTermo() {
         <label>Contato do responsável
           <CampoMascara v-model="dados.contato" tipo="telefone" :disabled="!editando" />
         </label>
-        <label class="largo">Endereço completo do responsável
+        <label class="largo">Endereço do responsável
           <input v-model="dados.endereco" :disabled="!editando" />
         </label>
 

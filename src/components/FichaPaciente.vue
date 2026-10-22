@@ -344,11 +344,8 @@ function excluir() {
           <label>Início do atendimento
             <CampoData v-model="ficha.data_inicio" />
           </label>
-          <label>Celular
+          <label>Contato
             <CampoMascara v-model="ficha.celular" tipo="telefone" />
-          </label>
-          <label>Contato de emergência (nome)
-            <input v-model="ficha.contato_emergencia_nome" />
           </label>
         </fieldset>
 
@@ -365,6 +362,9 @@ function excluir() {
         <fieldset :disabled="!editando">
           <label>Contato de emergência (número)
             <CampoMascara v-model="ficha.contato_emergencia_telefone" tipo="telefone" />
+          </label>
+          <label>Contato de emergência (nome)
+            <input v-model="ficha.contato_emergencia_nome" />
           </label>
           <label class="largo">Queixa inicial
             <textarea v-model="ficha.queixa_inicial" />
