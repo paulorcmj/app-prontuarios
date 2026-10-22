@@ -140,8 +140,6 @@ function registrarIpcBanco() {
   ipcMain.handle('valores:adicionar', (_e, pacienteId, valor, aPartirDe) => banco.adicionarValor(pacienteId, valor, aPartirDe));
   ipcMain.handle('valores:listar', (_e, pacienteId) => banco.listarValores(pacienteId));
   ipcMain.handle('valores:excluir', (_e, id) => banco.excluirValor(id));
-  ipcMain.handle('valores:atual', (_e, pacienteId) => banco.valorAtual(pacienteId));
-  ipcMain.handle('valores:naData', (_e, pacienteId, data) => banco.valorNaData(pacienteId, data));
   ipcMain.handle('responsavel:obter', (_e, pacienteId) => banco.obterResponsavel(pacienteId));
   ipcMain.handle('responsavel:salvar', (_e, pacienteId, dados, termo) => banco.salvarResponsavel(pacienteId, dados, termo));
 

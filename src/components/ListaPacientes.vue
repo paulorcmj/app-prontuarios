@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import PerfilLateral from './PerfilLateral.vue';
+import { lerOrdem, guardarOrdem } from '../preferencias.js';
 
 const props = defineProps({
   situacao: String,
@@ -23,24 +24,8 @@ const ORDENS = [
 
 // A ordem escolhida fica guardada para a próxima vez que o app abrir.
 const CHAVE_ORDEM = 'ordem-pacientes';
-
-function ordemSalva() {
-  try {
-    const salva = localStorage.getItem(CHAVE_ORDEM);
-    return ORDENS.some((o) => o.valor === salva) ? salva : 'nome-az';
-  } catch {
-    return 'nome-az';
-  }
-}
-
-const ordem = ref(ordemSalva());
-watch(ordem, (valor) => {
-  try {
-    localStorage.setItem(CHAVE_ORDEM, valor);
-  } catch {
-    // sem armazenamento, a ordem só vale até fechar o app
-  }
-});
+const ordem = ref(lerOrdem(CHAVE_ORDEM, ORDENS.map((o) => o.valor), 'nome-az'));
+watch(ordem, (valor) => guardarOrdem(CHAVE_ORDEM, valor));
 
 // Menu de ordenação (no lugar do seletor nativo, que não aceita o visual do app).
 // Fecha ao escolher, ao clicar fora e com Esc.

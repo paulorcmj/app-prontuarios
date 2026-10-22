@@ -1,18 +1,5 @@
 // Funções de formatação e conversão usadas pelos componentes.
 
-const pad = (n) => String(n).padStart(2, '0');
-
-// Data e hora locais no formato do input datetime-local: AAAA-MM-DDTHH:MM
-export function agoraLocal() {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-// Data local no formato AAAA-MM-DD
-export function hoje() {
-  return agoraLocal().slice(0, 10);
-}
-
 // AAAA-MM-DD (com ou sem hora) para DD/MM/AAAA. Quebra o texto em vez de usar Date,
 // porque new Date('2026-03-01') é lido como UTC e mostraria o dia anterior no Brasil.
 export function dataBR(texto) {

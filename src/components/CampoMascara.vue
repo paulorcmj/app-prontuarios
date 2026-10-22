@@ -1,13 +1,10 @@
 <script setup>
-// Campo de texto com máscara (CPF, telefone, CRP e as datas). O formato aparece sempre inteiro, com os
-// separadores no lugar e "_" nas posições vazias. Só entram números. Um clique seleciona um dígito e o
-// que for digitado entra no lugar dele; depois a seleção passa para a posição seguinte. Arrastar o mouse
-// seleciona um trecho, como em qualquer campo.
-// Quando o tipo tem formatos de tamanhos diferentes (telefone, CRP), o formato é escolhido pela
-// quantidade de posições usadas e o campo nunca mostra posições além do necessário.
+// Campo com máscara (CPF, telefone, CRP e datas). O formato aparece inteiro, com "_" nas posições
+// vazias, e só entram números: um clique seleciona um dígito e o que for digitado entra no lugar dele.
+// Quando o tipo tem mais de um tamanho (telefone, CRP), o formato cresce conforme as posições usadas.
 // O valor guardado é o texto formatado até o último dígito, com "_" nas posições apagadas no meio
-// (por exemplo "123.4_5"). Com a prop "tipo", o campo também mostra o aviso de incompleto ou inválido;
-// o formulário que o usa confere o mesmo texto com erroMascara() antes de salvar.
+// (ex.: "123.4_5"). Com a prop "tipo", o campo mostra o aviso de incompleto ou inválido; o formulário
+// confere o mesmo texto com erroMascara() antes de salvar.
 import { computed, inject, nextTick, ref } from 'vue';
 import { MASCARAS, mascaraPara, posicoes, quantos, erroMascara } from '../utilitarios.js';
 

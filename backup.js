@@ -153,7 +153,6 @@ function substituirArquivos(arquivos) {
 }
 
 module.exports = {
-  lerConfig,
   existemArquivosDoApp,
   pastaExistente,
   gravarBackup,

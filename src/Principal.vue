@@ -152,24 +152,14 @@ watch(aberto, () => {
 // Mantém o app informado, para o aviso valer também ao fechar a janela.
 watch(alteracaoPendente, (valor) => window.api.janela.avisarAlteracoes(valor));
 
-// Protege contra fechar o app ou recarregar a tela com alterações sem salvar.
-// Quem mostra o aviso ao usuário é o main.js (evento will-prevent-unload).
-function avisarAoFechar(evento) {
-  if (!alteracaoPendente.value) return;
-  evento.preventDefault();
-  evento.returnValue = false;
-}
-
 onMounted(() => {
   ativarGlobais();
   carregarLista();
   carregarProfissional();
-  window.addEventListener('beforeunload', avisarAoFechar);
   window.addEventListener('keydown', aoPressionarTecla);
   window.addEventListener('resize', aoRedimensionarJanela);
   window.addEventListener('pedir-saida', aoPedirSaida);
   window.api.janela.aoPedirFechar(aoPedirFechar);
-  
 });
 
 onBeforeUnmount(() => {

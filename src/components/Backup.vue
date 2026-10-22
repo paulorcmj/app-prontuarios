@@ -174,10 +174,4 @@ button.principal:disabled:hover {
   background: var(--roxo);
   border-color: var(--roxo);
 }
-.botao-embutido:disabled:hover {
-  background: var(--roxo-fundo);
-}
-.botao-embutido.destaque:disabled:hover {
-  background: var(--roxo);
-}
 </style>

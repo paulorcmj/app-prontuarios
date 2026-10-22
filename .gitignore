@@ -4,3 +4,5 @@ out
 *.db
 *.db-journal
 *.sqlite
+*.backup
+chaves.json

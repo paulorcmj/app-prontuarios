@@ -23,8 +23,6 @@ contextBridge.exposeInMainWorld('api', {
     adicionar: (pacienteId, valor, aPartirDe) => ipcRenderer.invoke('valores:adicionar', pacienteId, valor, aPartirDe),
     listar: (pacienteId) => ipcRenderer.invoke('valores:listar', pacienteId),
     excluir: (id) => ipcRenderer.invoke('valores:excluir', id),
-    atual: (pacienteId) => ipcRenderer.invoke('valores:atual', pacienteId),
-    naData: (pacienteId, data) => ipcRenderer.invoke('valores:naData', pacienteId, data),
   },
   responsavel: {
     obter: (pacienteId) => ipcRenderer.invoke('responsavel:obter', pacienteId),

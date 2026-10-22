@@ -272,18 +272,10 @@ function desarquivar() {
 }
 
 // Os PDFs são montados no processo principal, com o que está salvo no banco.
-function gerarPdfPaciente() {
+// "tipo" é 'paciente' ou 'analista'.
+function gerarPdf(tipo) {
   menuPdfAberto.value = false;
-  executar(async () => {
-    await window.api.pdf.paciente(props.pacienteId);
-  });
-}
-
-function gerarPdfAnalista() {
-  menuPdfAberto.value = false;
-  executar(async () => {
-    await window.api.pdf.analista(props.pacienteId);
-  });
+  executar(() => window.api.pdf[tipo](props.pacienteId));
 }
 
 function excluir() {
@@ -310,8 +302,8 @@ function excluir() {
         <div class="menu-pdf">
           <button type="button" class="principal" aria-haspopup="menu" :aria-expanded="menuPdfAberto" @click="menuPdfAberto = !menuPdfAberto">Gerar PDF</button>
           <div v-if="menuPdfAberto" class="pdf-menu">
-            <button type="button" @click="gerarPdfPaciente">PDF do paciente</button>
-            <button type="button" @click="gerarPdfAnalista">PDF do analista</button>
+            <button type="button" @click="gerarPdf('paciente')">PDF do paciente</button>
+            <button type="button" @click="gerarPdf('analista')">PDF do analista</button>
           </div>
         </div>
       </div>

@@ -118,6 +118,9 @@ const MIGRACOES = [
   ALTER TABLE sessoes ADD COLUMN modificado_em TEXT;
   UPDATE sessoes SET modificado_em = strftime('%Y-%m-%d %H:%M', 'now', 'localtime');
   `,
+  // Versão 10: as sessões criadas depois da versão 9 ficaram sem data de modificação.
+  // Elas passam a usar a data da própria sessão.
+  `UPDATE sessoes SET modificado_em = data_hora WHERE modificado_em IS NULL;`,
 ];
 
 let db;
@@ -128,10 +131,16 @@ function caminhoDoBanco() {
 
 function abrir(chave) {
   const conexao = new Database(caminhoDoBanco());
-  // A chave é um texto hexadecimal gerado pelo app (seguranca.js), nunca digitado na tela.
-  conexao.pragma(`key='${chave}'`);
-  // Com chave errada, a primeira leitura é que falha.
-  conexao.prepare('SELECT count(*) FROM sqlite_master').get();
+  try {
+    // A chave é um texto hexadecimal gerado pelo app (seguranca.js), nunca digitado na tela.
+    conexao.pragma(`key='${chave}'`);
+    // Com chave errada, a primeira leitura é que falha.
+    conexao.prepare('SELECT count(*) FROM sqlite_master').get();
+  } catch (e) {
+    // Sem fechar, o arquivo continuaria preso e uma nova tentativa falharia no Windows.
+    conexao.close();
+    throw e;
+  }
   return conexao;
 }
 
@@ -159,6 +168,12 @@ function agora() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// Padrão para o LIKE: % e _ digitados pelo usuário valem como texto comum, não como curinga.
+// Quem usa o padrão precisa declarar ESCAPE '\'.
+function padraoLike(termo) {
+  return '%' + termo.replace(/[\\%_]/g, '\\$&') + '%';
 }
 
 // Marca o paciente como modificado agora. Sessões, valores e responsável também contam,
@@ -214,10 +229,10 @@ function listarPacientes(situacao, busca) {
       `SELECT p.id, p.nome_completo, p.situacao, p.modificado_em,
               (SELECT MAX(data_hora) FROM sessoes WHERE paciente_id = p.id) AS ultima_sessao
        FROM pacientes p
-       WHERE p.situacao = ? AND p.nome_completo LIKE ?
+       WHERE p.situacao = ? AND p.nome_completo LIKE ? ESCAPE '\\'
        ORDER BY p.nome_completo COLLATE NOCASE`
     )
-    .all(situacao, `%${busca || ''}%`);
+    .all(situacao, padraoLike(busca || ''));
 }
 
 function obterPaciente(id) {
@@ -256,8 +271,10 @@ function criarSessao(pacienteId, dados) {
   validarDataHora(dados.data_hora);
   const titulo = validarTitulo(dados.titulo);
   const r = db
-    .prepare('INSERT INTO sessoes (paciente_id, data_hora, titulo, relato, anotacoes) VALUES (?, ?, ?, ?, ?)')
-    .run(pacienteId, dados.data_hora, titulo, dados.relato ?? null, dados.anotacoes ?? null);
+    .prepare(
+      'INSERT INTO sessoes (paciente_id, data_hora, titulo, relato, anotacoes, modificado_em) VALUES (?, ?, ?, ?, ?, ?)'
+    )
+    .run(pacienteId, dados.data_hora, titulo, dados.relato ?? null, dados.anotacoes ?? null, agora());
   tocar(pacienteId);
   return Number(r.lastInsertRowid);
 }
@@ -271,8 +288,7 @@ function listarSessoes(pacienteId, busca) {
       .prepare('SELECT * FROM sessoes WHERE paciente_id = ? ORDER BY data_hora, id')
       .all(pacienteId);
   }
-  // % e _ digitados pelo usuário valem como texto comum, não como curinga do LIKE.
-  const padrao = '%' + termo.replace(/[\\%_]/g, '\\$&') + '%';
+  const padrao = padraoLike(termo);
   return db
     .prepare(
       `SELECT * FROM sessoes
@@ -314,6 +330,7 @@ function adicionarValor(pacienteId, valor, aPartirDe) {
   return Number(r.lastInsertRowid);
 }
 
+// O valor atual é a primeira linha (a mais recente).
 function listarValores(pacienteId) {
   return db
     .prepare('SELECT * FROM valores WHERE paciente_id = ? ORDER BY a_partir_de DESC, id DESC')
@@ -325,25 +342,6 @@ function excluirValor(id) {
   const pacienteId = pacienteDoValor(id);
   db.prepare('DELETE FROM valores WHERE id = ?').run(id);
   if (pacienteId) tocar(pacienteId);
-}
-
-// Valor atual: a linha mais recente do histórico.
-function valorAtual(pacienteId) {
-  return db
-    .prepare('SELECT * FROM valores WHERE paciente_id = ? ORDER BY a_partir_de DESC, id DESC LIMIT 1')
-    .get(pacienteId) ?? null;
-}
-
-// Valor numa data: a linha mais recente com a_partir_de <= data.
-// Aceita AAAA-MM-DD ou AAAA-MM-DD HH:MM; só a parte da data entra na comparação.
-function valorNaData(pacienteId, data) {
-  return db
-    .prepare(
-      `SELECT * FROM valores
-       WHERE paciente_id = ? AND a_partir_de <= ?
-       ORDER BY a_partir_de DESC, id DESC LIMIT 1`
-    )
-    .get(pacienteId, data.slice(0, 10)) ?? null;
 }
 
 // Devolve o responsável sem o arquivo do termo (que pode ser grande): só o nome
@@ -462,8 +460,6 @@ module.exports = {
   adicionarValor,
   listarValores,
   excluirValor,
-  valorAtual,
-  valorNaData,
   obterResponsavel,
   salvarResponsavel,
   obterTermo,

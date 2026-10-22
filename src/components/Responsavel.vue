@@ -6,7 +6,7 @@ import { ref, shallowRef, computed, watch, onMounted, onBeforeUnmount, provide }
 import Colapsavel from './Colapsavel.vue';
 import CampoMascara from './CampoMascara.vue';
 import Confirmacao from './Confirmacao.vue';
-import { mensagemDeErro, erroMascara, statusData } from '../utilitarios.js';
+import { mensagemDeErro, erroMascara, statusData, dataBR } from '../utilitarios.js';
 import { lerSecao, guardarSecao } from '../preferencias.js';
 import CampoData from './CampoData.vue';
 
@@ -67,8 +67,6 @@ const termoAtual = computed(() => {
   return termoSalvo.value ? { ...termoSalvo.value, novo: false } : null;
 });
 const removendo = computed(() => termoPendente.value === 'remover');
-
-const dataBR = (data) => (data ? data.slice(0, 10).split('-').reverse().join('/') : '');
 
 async function carregar() {
   const r = await window.api.responsavel.obter(props.pacienteId);
@@ -183,26 +181,26 @@ function gerarTermo() {
           <input v-model="dados.endereco" :disabled="!editando" />
         </label>
 
-<div class="largo termo">
-  <span class="rotulo">Termo de autorização assinado</span>
-  <div class="termo-linha">
-    <span v-if="termoAtual" class="termo-texto termo-nome" :title="termoAtual.nome">
-      <span class="termo-arquivo">{{ termoAtual.nome }}</span>
-      <small v-if="termoAtual.novo">será anexado ao salvar</small>
-      <small v-else-if="termoAtual.anexadoEm">anexado em {{ dataBR(termoAtual.anexadoEm) }}</small>
-    </span>
-    <span v-else-if="removendo" class="termo-texto vazio">O termo será removido ao salvar</span>
-    <span v-else class="termo-texto vazio">Nenhum termo anexado</span>
+        <div class="largo termo">
+          <span class="rotulo">Termo de autorização assinado</span>
+          <div class="termo-linha">
+            <span v-if="termoAtual" class="termo-texto termo-nome" :title="termoAtual.nome">
+              <span class="termo-arquivo">{{ termoAtual.nome }}</span>
+              <small v-if="termoAtual.novo">será anexado ao salvar</small>
+              <small v-else-if="termoAtual.anexadoEm">anexado em {{ dataBR(termoAtual.anexadoEm) }}</small>
+            </span>
+            <span v-else-if="removendo" class="termo-texto vazio">O termo será removido ao salvar</span>
+            <span v-else class="termo-texto vazio">Nenhum termo anexado</span>
 
-    <div class="termo-botoes">
-      <template v-if="editando">
-        <button v-if="termoAtual" type="button" class="perigo" @click="remover">Remover</button>
-        <button type="button" @click="anexar">{{ termoAtual ? 'Substituir' : 'Anexar termo assinado' }}</button>
-      </template>
-      <button v-else-if="termoAtual" type="button" @click="abrir">Abrir</button>
-    </div>
-  </div>
-</div>
+            <div class="termo-botoes">
+              <template v-if="editando">
+                <button v-if="termoAtual" type="button" class="perigo" @click="remover">Remover</button>
+                <button type="button" @click="anexar">{{ termoAtual ? 'Substituir' : 'Anexar termo assinado' }}</button>
+              </template>
+              <button v-else-if="termoAtual" type="button" @click="abrir">Abrir</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Um paciente novo grava o responsável junto com a ficha, então não tem botões aqui. -->

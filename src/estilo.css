@@ -109,7 +109,7 @@ input[type='checkbox']:disabled:hover { filter: brightness(1.25); }
 .busca-linha { display: flex; }
 .busca-linha input { flex: 1; min-width: 0; }
 .botao-ordenar, .botao-embutido { position: absolute; top: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; width: 40px; padding: 0; border: 1px solid var(--borda); border-radius: 0 10px 10px 0; background: var(--roxo-fundo); color: var(--texto-suave); }
-.botao-ordenar:hover, .botao-ordenar[aria-expanded='true'], .botao-ordenar:focus-visible, .botao-embutido:hover, .botao-embutido[aria-expanded='true'], .botao-embutido:focus-visible { background: var(--roxo-fundo); color: var(--roxo); }.botao-embutido:disabled { opacity: 0.5; cursor: not-allowed; }
+.botao-ordenar:hover, .botao-ordenar[aria-expanded='true'], .botao-ordenar:focus-visible, .botao-embutido:hover, .botao-embutido[aria-expanded='true'], .botao-embutido:focus-visible { background: var(--roxo-fundo); color: var(--roxo); } .botao-embutido:disabled { opacity: 0.5; cursor: not-allowed; }
 .botao-embutido:disabled:hover { color: var(--texto-suave); }
 .botao-ordenar svg, .botao-embutido svg { display: block; }
 .busca-sessoes input { display: block; }

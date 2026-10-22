@@ -55,15 +55,15 @@ async function salvar() {
     </div>
     <form v-else class="janela janela-dados" @submit.prevent="salvar">
       <h3>Alterar senha</h3>
-<label>Senha atual
-  <CampoSenha v-model="senhaAtual" autocomplete="current-password" />
-</label>
-<label>Nova senha
-  <CampoSenha v-model="novaSenha" autocomplete="new-password" />
-</label>
-<label>Confirmar nova senha
-  <CampoSenha v-model="confirmacao" autocomplete="new-password" />
-</label>
+      <label>Senha atual
+        <CampoSenha v-model="senhaAtual" autocomplete="current-password" />
+      </label>
+      <label>Nova senha
+        <CampoSenha v-model="novaSenha" autocomplete="new-password" />
+      </label>
+      <label>Confirmar nova senha
+        <CampoSenha v-model="confirmacao" autocomplete="new-password" />
+      </label>
       <p v-if="erro" class="erro">{{ erro }}</p>
       <div class="acoes">
         <button type="button" @click="pedirFechar">Cancelar</button>
