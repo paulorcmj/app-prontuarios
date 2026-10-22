@@ -3,6 +3,7 @@
 // "pendente" avisa que há texto sem salvar: nesse caso o Cancelar pede confirmação.
 import { ref, watch } from 'vue';
 import Confirmacao from './Confirmacao.vue';
+import CampoData from './CampoData.vue';
 
 const props = defineProps({ rotuloSalvar: String, pendente: Boolean, contorno: Boolean });
 const emit = defineEmits(['salvar', 'cancelar']);
@@ -42,7 +43,7 @@ function descartar() {
 <template>
   <form class="form-sessao" novalidate @submit.prevent="enviar">
     <label>Data e hora
-      <input v-model="dados.data_hora" type="datetime-local" />
+      <CampoData v-model="dados.data_hora" hora />
       <span v-if="erros.data_hora" class="erro">{{ erros.data_hora }}</span>
     </label>
     <label>Título

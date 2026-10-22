@@ -53,7 +53,7 @@ function linha(rotulo, valor) {
 
 const ESTILO = `
   @page { size: A4; margin: 20mm 20mm 22mm; }
-  body { font-family: Georgia, 'Times New Roman', serif; font-size: 12pt; line-height: 1.45; color: #111; }
+  body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.45; color: #111; }
   .cabecalho { margin-bottom: 22px; padding-bottom: 10px; border-bottom: 1px solid #999; }
   .cabecalho .nome { font-size: 13pt; font-weight: bold; }
   .cabecalho .contato { font-size: 11pt; }

@@ -106,8 +106,8 @@ const ordenados = computed(() => [...props.pacientes].sort(COMPARACOES[ordem.val
         <button
           type="button"
           class="botao-ordenar"
-          title="Ordenar"
-          aria-label="Ordenar lista"
+          title="Ordenar pacientes"
+          aria-label="Ordenar pacientes"
           :aria-expanded="ordemAberta"
           @click="ordemAberta = !ordemAberta"
         >

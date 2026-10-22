@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import Confirmacao from './Confirmacao.vue';
 import { dataBR, reais, mensagemDeErro } from '../utilitarios.js';
+import CampoData from './CampoData.vue';
 
 // "erros" traz as mensagens de cada campo ({ valor, data }), mostradas embaixo dele.
 defineProps({ historico: Array, editando: Boolean, erros: Object });
@@ -51,12 +52,12 @@ async function remover() {
   <div class="par-valor">
     <div class="campo">
       <label for="campo-valor">Valor da sessão (R$)</label>
-      <div class="campo-com-botao">
+      <div class="campo-com-botao caixa-botao">
         <input id="campo-valor" v-model="valor" inputmode="decimal" placeholder="R$ 0,00" :class="{ 'sem-valor': !valor }" :disabled="!editando" />
         <span ref="menuRef" class="menu-historico">
           <button
             type="button"
-            class="icone"
+            class="botao-embutido"
             title="Histórico de valores"
             aria-label="Histórico de valores"
             :aria-expanded="menuAberto"
@@ -81,7 +82,7 @@ async function remover() {
 
     <div class="campo">
       <label for="campo-data">A partir de</label>
-      <input id="campo-data" v-model="data" type="date" :class="{ 'sem-valor': !data }" :disabled="!editando" />
+      <CampoData id="campo-data" v-model="data" :disabled="!editando" />
       <p v-if="erros?.data" class="erro">{{ erros.data }}</p>
     </div>
 

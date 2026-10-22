@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue';
 import { mensagemDeErro } from './utilitarios.js';
 import ConfirmarBackup from './components/ConfirmarBackup.vue';
 import CampoSenha from './components/CampoSenha.vue';
+import { ativarGlobais } from './globais.js';
 
 const emit = defineEmits(['liberado']);
 
@@ -18,6 +19,7 @@ const erro = ref('');
 const ocupado = ref(false);
 
 onMounted(async () => {
+  ativarGlobais();
   modo.value = (await window.api.acesso.estado()) === 'criar' ? 'criar' : 'entrar';
 });
 

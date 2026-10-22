@@ -193,10 +193,8 @@ function criarPaciente(dados) {
   const colunas = CAMPOS_PACIENTE.join(', ');
   const valores = CAMPOS_PACIENTE.map((c) => '@' + c).join(', ');
   const r = db
-    .prepare(
-      'INSERT INTO sessoes (paciente_id, data_hora, titulo, relato, anotacoes, modificado_em) VALUES (?, ?, ?, ?, ?, ?)'
-    )
-    .run(pacienteId, dados.data_hora, titulo, dados.relato ?? null, dados.anotacoes ?? null, agora());
+    .prepare(`INSERT INTO pacientes (${colunas}, modificado_em) VALUES (${valores}, @modificado_em)`)
+    .run({ ...ficha, modificado_em: agora() });
   return Number(r.lastInsertRowid);
 }
 

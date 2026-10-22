@@ -31,7 +31,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; font-size: 15px; color: v
 
 button, input, textarea { font: inherit; color: inherit; }
 /* Todos os títulos: mesma fonte do app, mesmo tamanho. */
-h2, h3 { margin: 0; font-family: inherit; font-size: 22px; font-weight: 600; }
+h2, h3 { margin: 0; font-family: inherit; font-size: 18px; font-weight: 600; }
 /* Botões não quebram o texto em duas linhas; onde o texto é longo (lista, títulos), a regra é desfeita. */
 button { padding: 6px 14px; border: 1px solid var(--borda-forte); border-radius: 10px; background: transparent; cursor: pointer; white-space: nowrap; }
 button:hover { background: var(--campo); }
@@ -99,12 +99,28 @@ input[type='checkbox']:disabled:hover { filter: brightness(1.25); }
 .busca-linha, .busca-sessoes { position: relative; }
 .busca-linha { display: flex; }
 .busca-linha input { flex: 1; min-width: 0; }
-.botao-ordenar { position: absolute; top: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; width: 40px; padding: 0; border: 1px solid var(--borda); border-radius: 0 10px 10px 0; background: var(--roxo-fundo); color: var(--texto-suave); }
-.botao-ordenar:hover, .botao-ordenar[aria-expanded='true'] { background: var(--roxo-fundo); color: var(--roxo); }
-.botao-ordenar svg { display: block; }
+.botao-ordenar, .botao-embutido { position: absolute; top: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; width: 40px; padding: 0; border: 1px solid var(--borda); border-radius: 0 10px 10px 0; background: var(--roxo-fundo); color: var(--texto-suave); }
+.botao-ordenar:hover, .botao-ordenar[aria-expanded='true'], .botao-embutido:hover, .botao-embutido[aria-expanded='true'] { background: var(--roxo-fundo); color: var(--roxo); }
+.botao-embutido:disabled { opacity: 0.5; cursor: not-allowed; }
+.botao-embutido:disabled:hover { color: var(--texto-suave); }
+.botao-ordenar svg, .botao-embutido svg { display: block; }
 .busca-sessoes input { display: block; }
-/* Com a busca em foco, o botão de ordenar acompanha a cor da borda. */
+/* Com o campo em foco, o botão embutido acompanha a cor da borda. */
 .busca-linha:focus-within .botao-ordenar, .busca-sessoes:focus-within .botao-ordenar { border-color: var(--roxo); }
+/* Campo com botão dentro (datas e valor): a borda é da caixa, e o campo e o botão ficam dentro dela,
+   sem borda própria. A cor da borda fica em --cor-borda: o foco e o erro trocam essa cor, e com ela
+   mudam a caixa inteira e o traço que separa o botão do campo. */
+.caixa-botao { --cor-borda: var(--borda); display: flex; border: 1px solid var(--cor-borda); border-radius: 10px; background: var(--campo); }
+.caixa-botao:focus-within { --cor-borda: var(--roxo); }
+.caixa-botao.invalida { --cor-borda: var(--perigo); }
+/* Valor: com o foco no botão do histórico (ou na lista dele), só o botão se destaca e a caixa fica neutra.
+   Os campos de data não têm .menu-historico, então continuam com a caixa inteira em foco. */
+.caixa-botao:has(.menu-historico:focus-within) { --cor-borda: var(--borda); }
+.caixa-botao input { flex: 1; min-width: 0; border: 0; border-radius: 9px 0 0 9px; background: transparent; }
+.caixa-botao .menu-historico { display: flex; }
+.caixa-botao .botao-embutido { position: static; border-width: 0 0 0 1px; border-color: var(--cor-borda); border-radius: 0 9px 9px 0; }
+/* Botão do histórico em foco: contorno roxo completo, por cima da borda da caixa (margem negativa). */
+.caixa-botao .menu-historico:focus-within .botao-embutido { margin: -1px; border: 1px solid var(--roxo); border-radius: 0 10px 10px 0; }
 .limpar-busca { position: absolute; top: 0; bottom: 0; right: 40px; display: flex; align-items: center; justify-content: center; width: 30px; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--texto-suave); }
 .limpar-busca:hover { background: transparent; color: var(--roxo); }
 
@@ -186,8 +202,6 @@ input[type='checkbox']:disabled:hover { filter: brightness(1.25); }
    e não ser cortada pela borda do painel. */
 .par-valor { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .campo-com-botao { position: relative; }
-.campo-com-botao input { padding-right: 42px; }
-.menu-historico button.icone { position: absolute; top: 4px; right: 4px; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border-radius: 8px; background: var(--roxo-fundo); }
 .historico { position: absolute; top: calc(100% + 4px); left: 0; z-index: 10; min-width: 290px; max-height: 240px; margin: 0; padding: 4px 12px; overflow-y: auto; list-style: none; border: 1px solid var(--borda-forte); border-radius: 10px; background: var(--superficie); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); color: var(--texto); font-size: 13px; }
 .historico li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; }
 .historico button { padding: 2px 8px; font-size: 12px; }

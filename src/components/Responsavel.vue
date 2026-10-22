@@ -8,6 +8,7 @@ import CampoMascara from './CampoMascara.vue';
 import Confirmacao from './Confirmacao.vue';
 import { mensagemDeErro } from '../utilitarios.js';
 import { lerSecao, guardarSecao } from '../preferencias.js';
+import CampoData from './CampoData.vue';
 
 const props = defineProps({ pacienteId: [Number, String] });
 const emit = defineEmits(['alteracao-pendente']);
@@ -153,7 +154,7 @@ function gerarTermo() {
           <CampoMascara v-model="dados.cpf" mascara="###.###.###-##" :disabled="!editando" />
         </label>
         <label>Data de nascimento do responsável
-          <input v-model="dados.data_nascimento" type="date" :class="{ 'sem-valor': !dados.data_nascimento }" :disabled="!editando" />
+          <CampoData v-model="dados.data_nascimento" :disabled="!editando" />
         </label>
         <label>Cidade/Estado do responsável
           <input v-model="dados.cidade_estado" :disabled="!editando" />

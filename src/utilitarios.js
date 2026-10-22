@@ -45,3 +45,20 @@ export function reaisParaCentavos(texto) {
 export function mensagemDeErro(e) {
   return e.message.replace(/^Error invoking remote method '[^']*': (Error: )?/, '');
 }
+
+// Confere uma data ("AAAA-MM-DD") ou data e hora ("AAAA-MM-DDTHH:MM") com as regras do próprio Chromium
+// (o motor do Electron): o valor é colocado num campo de data nativo que nunca entra na tela, e o campo
+// devolve vazio se a data ou a hora não existirem. Os campos são criados na primeira chamada, para este
+// arquivo continuar carregando em contextos sem document.
+let verificadores = null;
+
+export function isoValido(iso, comHora = false) {
+  if (!verificadores) {
+    verificadores = { data: document.createElement('input'), dataHora: document.createElement('input') };
+    verificadores.data.type = 'date';
+    verificadores.dataHora.type = 'datetime-local';
+  }
+  const campo = comHora ? verificadores.dataHora : verificadores.data;
+  campo.value = iso;
+  return campo.value !== '';
+}

@@ -8,6 +8,7 @@ import Sessoes from './Sessoes.vue';
 import Responsavel from './Responsavel.vue';
 import { reaisParaCentavos, centavosParaCampo, mensagemDeErro } from '../utilitarios.js';
 import { lerSecao, guardarSecao, esquecerPaciente } from '../preferencias.js';
+import CampoData from './CampoData.vue';
 
 const props = defineProps({ pacienteId: [Number, String] });
 const emit = defineEmits(['salvo', 'mudou-situacao', 'alteracao-pendente']);
@@ -191,7 +192,6 @@ function salvar() {
     const conferido = conferirValor();
     if (!nomeOk || !conferido) return;
     const valorNovo = conferido.novo;
-    const comResponsavel = novo && dados.menor_de_idade && responsavelRef.value;
 
     if (!novo) {
       await window.api.pacientes.atualizar(props.pacienteId, dados);
@@ -209,10 +209,6 @@ function salvar() {
     if (valorNovo) {
       // Se falhar, o paciente já existe e o valor pode ser registrado depois, editando a ficha.
       await window.api.valores.adicionar(id, valorNovo.centavos, valorNovo.data).catch(() => {});
-    }
-    if (comResponsavel) {
-      // Idem: se falhar, o responsável pode ser preenchido depois, na própria seção.
-      await responsavelRef.value.salvarPara(id).catch(() => {});
     }
     emit('salvo', id);
   });
@@ -310,7 +306,7 @@ function excluir() {
           </label>
           <div class="coluna">
             <label>Data de nascimento
-              <input v-model="ficha.data_nascimento" type="date" :class="{ 'sem-valor': !ficha.data_nascimento }" />
+              <CampoData v-model="ficha.data_nascimento" />
             </label>
             <label class="marcar">
               <input v-model="ficha.menor_de_idade" type="checkbox" />
@@ -321,7 +317,7 @@ function excluir() {
             <input v-model="ficha.cidade_estado" />
           </label>
           <label>Início do atendimento
-            <input v-model="ficha.data_inicio" type="date" :class="{ 'sem-valor': !ficha.data_inicio }" />
+            <CampoData v-model="ficha.data_inicio" />
           </label>
           <label>Celular
             <CampoMascara v-model="ficha.celular" mascara="(##) #####-####" />
@@ -385,7 +381,7 @@ function excluir() {
   </form>
   <!-- Fora do formulário: a seção tem botões próprios e um formulário não pode ficar dentro de outro. -->
   <Responsavel
-    v-if="ficha.menor_de_idade"
+    v-if="ficha.menor_de_idade && !novo"
     ref="responsavelRef"
     :paciente-id="pacienteId"
     @alteracao-pendente="responsavelPendente = $event"

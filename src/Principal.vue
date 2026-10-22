@@ -4,6 +4,7 @@ import ListaPacientes from './components/ListaPacientes.vue';
 import FichaPaciente from './components/FichaPaciente.vue';
 import Confirmacao from './components/Confirmacao.vue';
 import Profissional from './components/Profissional.vue';
+import { ativarGlobais } from './globais.js';
 
 const situacao = ref('ativo');
 const busca = ref('');
@@ -160,6 +161,7 @@ function avisarAoFechar(evento) {
 }
 
 onMounted(() => {
+  ativarGlobais();
   carregarLista();
   carregarProfissional();
   window.addEventListener('beforeunload', avisarAoFechar);
@@ -167,6 +169,7 @@ onMounted(() => {
   window.addEventListener('resize', aoRedimensionarJanela);
   window.addEventListener('pedir-saida', aoPedirSaida);
   window.api.janela.aoPedirFechar(aoPedirFechar);
+  
 });
 
 onBeforeUnmount(() => {
