@@ -1,8 +1,9 @@
 <script setup>
-import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, nextTick, onMounted } from 'vue';
 import Confirmacao from './Confirmacao.vue';
 import Colapsavel from './Colapsavel.vue';
 import FormSessao from './FormSessao.vue';
+import BuscaComOrdem from './BuscaComOrdem.vue';
 import { dataHoraBR, mensagemDeErro } from '../utilitarios.js';
 import { lerOrdem, guardarOrdem, lerSecao, guardarSecao } from '../preferencias.js';
 
@@ -22,9 +23,6 @@ const CHAVE_ORDEM = 'ordem-sessoes';
 const ordem = ref(lerOrdem(CHAVE_ORDEM, ORDENS.map((o) => o.valor), 'recentes'));
 watch(ordem, (valor) => guardarOrdem(CHAVE_ORDEM, valor));
 
-const menuOrdemAberto = ref(false);
-const buscaRef = ref(null);
-
 const sessoesOrdenadas = computed(() => {
   const lista = [...sessoes.value];
   if (ordem.value === 'antigas') return lista;
@@ -36,20 +34,6 @@ const sessoesOrdenadas = computed(() => {
   }
   return lista.reverse();
 });
-
-function escolherOrdem(valor) {
-  ordem.value = valor;
-  menuOrdemAberto.value = false;
-}
-
-// O menu de ordenação fecha ao clicar fora dele ou ao apertar Esc.
-function fecharMenuSeClicouFora(evento) {
-  if (menuOrdemAberto.value && !buscaRef.value?.contains(evento.target)) menuOrdemAberto.value = false;
-}
-
-function fecharMenuComEsc(evento) {
-  if (evento.key === 'Escape') menuOrdemAberto.value = false;
-}
 
 const busca = ref('');
 const erro = ref('');
@@ -104,16 +88,7 @@ async function carregar() {
   }
 }
 
-onMounted(() => {
-  carregar();
-  document.addEventListener('click', fecharMenuSeClicouFora);
-  document.addEventListener('keydown', fecharMenuComEsc);
-});
-
-onBeforeUnmount(() => {
-  document.removeEventListener('click', fecharMenuSeClicouFora);
-  document.removeEventListener('keydown', fecharMenuComEsc);
-});
+onMounted(carregar);
 
 watch(busca, carregar);
 
@@ -205,41 +180,16 @@ async function excluir() {
   <Colapsavel v-model:aberto="secaoAberta" class="bloco">
     <template #titulo>Sessões <span class="contagem">{{ sessoes.length }}</span></template>
     <template #acoes>
-      <div ref="buscaRef" class="busca-sessoes">
-        <input v-model="busca" type="search" aria-label="Buscar nas sessões" placeholder="Buscar nas sessões" />
-        <button v-if="busca" type="button" class="limpar-busca" title="Limpar busca" aria-label="Limpar busca" @click="busca = ''">
-          <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-            <path d="M2 2l8 8M10 2l-8 8" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          class="botao-ordenar"
-          title="Ordenar sessões"
-          aria-label="Ordenar sessões"
-          aria-haspopup="menu"
-          :aria-expanded="menuOrdemAberto"
-          @click="menuOrdemAberto = !menuOrdemAberto"
-        >
-          <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
-            <path d="M3 5.5h14M3 10h10M3 14.5h6" />
-          </svg>
-        </button>
-        <div v-if="menuOrdemAberto" class="ordem-menu">
-          <button
-            v-for="o in ORDENS"
-            :key="o.valor"
-            type="button"
-            :class="{ escolhida: o.valor === ordem }"
-            @click="escolherOrdem(o.valor)"
-          >
-            <span>{{ o.rotulo }}</span>
-            <svg v-if="o.valor === ordem" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M3.5 8.5l3 3 6-7" />
-            </svg>
-          </button>
-        </div>
-      </div>
+      <BuscaComOrdem
+        v-model:busca="busca"
+        v-model:ordem="ordem"
+        class="busca-sessoes"
+        :ordens="ORDENS"
+        placeholder="Buscar nas sessões"
+        rotulo-busca="Buscar nas sessões"
+        rotulo-ordenar="Ordenar sessões"
+        popup
+      />
       <button type="button" class="principal" @click="abrirNova">Nova sessão</button>
     </template>
 
