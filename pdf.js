@@ -288,15 +288,30 @@ function lacuna(valor, largura) {
 
 function htmlTermo(paciente, responsavel, profissional) {
   const r = responsavel || {};
-  const endereco = [r.endereco, r.cidade_estado].filter((t) => t && t.trim()).join(', ');
   const crp = profissional.crp ? formatarCrp(profissional.crp) : '';
+
+  // Endereço e cidade/estado são campos separados no cadastro. Se só um deles estiver
+  // preenchido, o outro vira uma linha em branco para preencher à mão; se nenhum
+  // estiver, sai uma linha só para o domicílio inteiro.
+  const enderecoTexto = (r.endereco || '').trim();
+  const cidadeEstado = (r.cidade_estado || '').trim();
+  let domicilio;
+  if (enderecoTexto && cidadeEstado) {
+    domicilio = `<span class="preenchido">${esc(`${enderecoTexto}, ${cidadeEstado}`)}</span>`;
+  } else if (enderecoTexto) {
+    domicilio = `<span class="preenchido">${esc(enderecoTexto)}</span>, ${lacuna('', 40)}`;
+  } else if (cidadeEstado) {
+    domicilio = `${lacuna('', 70)}, <span class="preenchido">${esc(cidadeEstado)}</span>`;
+  } else {
+    domicilio = lacuna('', 110);
+  }
 
   return paginaHtml(
     `
   <div class="termo">
     <h1>AUTORIZAÇÃO PARA ACOMPANHAMENTO PSICOTERAPÊUTICO DE CRIANÇAS E ADOLESCENTES (MENORES DE 18 ANOS)</h1>
 
-    <p>Eu, ${lacuna(r.nome_completo, 90)}, data de nascimento ${lacuna(dataBR(r.data_nascimento), 28)}, portador(a) do documento de identificação (RG ou CPF) nº ${lacuna(r.cpf, 40)}, domiciliado(a) à ${lacuna(endereco, 110)}, responsável legal pela(o) criança/adolescente ${lacuna(paciente.nome_completo, 90)}, data de nascimento ${lacuna(dataBR(paciente.data_nascimento), 28)}, portador(a) do documento de identificação (RG ou CPF) nº ${lacuna(paciente.cpf, 40)}, autorizo o(a) profissional ${lacuna(profissional.nome, 70)}, ${lacuna(crp, 30)}, a realizar o acompanhamento psicoterapêutico da criança/adolescente acima identificado(a), bem como os encaminhamentos cabíveis.</p>
+    <p>Eu, ${lacuna(r.nome_completo, 90)}, data de nascimento ${lacuna(dataBR(r.data_nascimento), 28)}, portador(a) do documento de identificação (RG ou CPF) nº ${lacuna(r.cpf, 40)}, domiciliado(a) à ${domicilio}, responsável legal pela(o) criança/adolescente ${lacuna(paciente.nome_completo, 90)}, data de nascimento ${lacuna(dataBR(paciente.data_nascimento), 28)}, portador(a) do documento de identificação (RG ou CPF) nº ${lacuna(paciente.cpf, 40)}, autorizo o(a) profissional ${lacuna(profissional.nome, 70)}, ${lacuna(crp, 30)}, a realizar o acompanhamento psicoterapêutico da criança/adolescente acima identificado(a), bem como os encaminhamentos cabíveis.</p>
 
     <p>Todas as intervenções e documentos produzidos serão regidos pelos dispositivos legais vigentes, em especial pelo disposto na Resolução CFP nº 10, de 2005 (Código de Ética Profissional do Psicólogo), bem como pelas demais Resoluções da Psicologia relacionadas ao exercício da profissão.</p>
 

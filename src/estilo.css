@@ -23,6 +23,15 @@
 html, body, #app { height: 100%; margin: 0; }
 body { font-family: 'Segoe UI', system-ui, sans-serif; font-size: 15px; color: var(--texto); background: var(--fundo); }
 
+/* Seleção de texto no tom da paleta, no lugar do azul padrão do navegador.
+   O text-fill-color acompanha o dos campos travados e dos campos vazios, que o
+   definem para o texto não ficar apagado quando selecionado. */
+::selection {
+  background: rgba(183, 156, 255, 0.35);
+  color: var(--texto);
+  -webkit-text-fill-color: var(--texto);
+}
+
 /* Barras de rolagem no mesmo tom do tema, sem as setinhas das pontas */
 * { scrollbar-width: thin; scrollbar-color: var(--borda-forte) transparent; }
 ::-webkit-scrollbar { width: 10px; }
