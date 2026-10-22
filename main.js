@@ -5,7 +5,7 @@ const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron')
 const path = require('path');
 const fs = require('fs');
 const banco = require('./banco');
-const { gerarPdfPaciente, gerarPdfAnalista } = require('./pdf');
+const { gerarPdfPaciente, gerarPdfAnalista, gerarPdfTermo } = require('./pdf');
 const seguranca = require('./seguranca');
 const backup = require('./backup');
 
@@ -121,6 +121,9 @@ function registrarIpcBanco() {
   ipcBancoRegistrado = true;
   ipcMain.handle('pdf:analista', (evento, pacienteId) =>
     gerarPdfAnalista(pacienteId, BrowserWindow.fromWebContents(evento.sender))
+  );
+  ipcMain.handle('pdf:termo', (evento, pacienteId) =>
+    gerarPdfTermo(pacienteId, BrowserWindow.fromWebContents(evento.sender))
   );
   ipcMain.handle('pacientes:criar', (_e, dados) => banco.criarPaciente(dados));
   ipcMain.handle('pacientes:atualizar', (_e, id, dados) => banco.atualizarPaciente(id, dados));

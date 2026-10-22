@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld('api', {
   pdf: {
     paciente: (pacienteId) => ipcRenderer.invoke('pdf:paciente', pacienteId),
     analista: (pacienteId) => ipcRenderer.invoke('pdf:analista', pacienteId),
+    termo: (pacienteId) => ipcRenderer.invoke('pdf:termo', pacienteId),
   },
   acesso: {
     estado: () => ipcRenderer.invoke('acesso:estado'),

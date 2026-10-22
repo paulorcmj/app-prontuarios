@@ -145,9 +145,9 @@ function abrir() {
   executar(() => window.api.termo.abrir(props.pacienteId));
 }
 
-// O documento a ser assinado ainda será definido.
+// Gera o termo em PDF com os dados já salvos; o botão só aparece fora do modo de edição.
 function gerarTermo() {
-  erro.value = 'O termo de autorização ainda não está disponível';
+  executar(() => window.api.pdf.termo(props.pacienteId));
 }
 </script>
 

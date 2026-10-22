@@ -85,12 +85,12 @@ function topoHtml(profissional, titulo) {
   <p class="emissao">Emitido em ${new Date().toLocaleDateString('pt-BR')}</p>`;
 }
 
-function paginaHtml(corpo) {
+function paginaHtml(corpo, estiloExtra = '') {
   return `<!doctype html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<style>${ESTILO}</style>
+<style>${ESTILO}${estiloExtra}</style>
 </head>
 <body>
 ${corpo}
@@ -204,9 +204,9 @@ function htmlAnalista(paciente, sessoes, valores, responsavel, profissional) {
 // Pergunta onde salvar e imprime o HTML em PDF.
 // Só o nome do arquivo é sugerido; a pasta inicial fica por conta do Windows.
 // Devolve o caminho do arquivo, ou null se o usuário cancelar.
-async function salvarPdf(janelaPai, nomeArquivo, html) {
+async function salvarPdf(janelaPai, nomeArquivo, html, titulo = 'Salvar prontuário em PDF') {
   const escolha = await dialog.showSaveDialog(janelaPai, {
-    title: 'Salvar prontuário em PDF',
+    title: titulo,
     defaultPath: nomeArquivo,
     filters: [{ name: 'PDF', extensions: ['pdf'] }],
   });
@@ -258,4 +258,81 @@ async function gerarPdfAnalista(pacienteId, janelaPai) {
   return salvarPdf(janelaPai, `Prontuário completo - ${nomeLimpo}.pdf`, html);
 }
 
-module.exports = { gerarPdfPaciente, gerarPdfAnalista };
+// Termo de autorização para acompanhamento de menores. Sai com o que já está cadastrado;
+// o que faltar fica como linha em branco para preencher à mão. Cidade e data de assinatura
+// ficam sempre em branco, porque são preenchidas no dia em que o responsável assina.
+
+const ESTILO_TERMO = `
+  .termo h1 { margin-bottom: 26px; font-size: 14pt; text-align: center; }
+  .termo p { margin-bottom: 16px; text-align: justify; white-space: normal; line-height: 1.8; }
+  .preenchido { font-weight: bold; }
+  .lacuna { display: inline-block; height: 1em; border-bottom: 1px solid #111; }
+  .local { display: flex; justify-content: center; gap: 12mm; margin-top: 34px; }
+  .campo-local { text-align: center; font-family: 'Times New Roman', Times, serif; }
+  .campo-local .traco { height: 24px; border-bottom: 1px solid #111; }
+  .campo-local .traco.data { display: grid; grid-template-columns: 1fr 1fr 1fr; }
+  .campo-local .traco.data span { align-self: end; text-align: right; }
+  .campo-local .legenda { margin-top: 3px; font-size: 12pt; color: #111; line-height: 1.4; }
+  .assinatura { margin-top: 16px; text-align: center; }
+  .assinatura .linha { width: 110mm; margin: 44px auto 4px; border-top: 1px solid #111; }
+  .assinatura p { margin: 0; text-align: center; line-height: 1.4; }
+`;
+
+// Mostra o valor em negrito; sem valor, deixa uma linha em branco com a largura (em mm) pedida.
+function lacuna(valor, largura) {
+  const texto = String(valor ?? '').trim();
+  return texto
+    ? `<span class="preenchido">${esc(texto)}</span>`
+    : `<span class="lacuna" style="min-width:${largura}mm"></span>`;
+}
+
+function htmlTermo(paciente, responsavel, profissional) {
+  const r = responsavel || {};
+  const endereco = [r.endereco, r.cidade_estado].filter((t) => t && t.trim()).join(', ');
+  const crp = profissional.crp ? formatarCrp(profissional.crp) : '';
+
+  return paginaHtml(
+    `
+  <div class="termo">
+    <h1>AUTORIZAÇÃO PARA ACOMPANHAMENTO PSICOTERAPÊUTICO DE CRIANÇAS E ADOLESCENTES (MENORES DE 18 ANOS)</h1>
+
+    <p>Eu, ${lacuna(r.nome_completo, 90)}, data de nascimento ${lacuna(dataBR(r.data_nascimento), 28)}, portador(a) do documento de identificação (RG ou CPF) nº ${lacuna(r.cpf, 40)}, domiciliado(a) à ${lacuna(endereco, 110)}, responsável legal pela(o) criança/adolescente ${lacuna(paciente.nome_completo, 90)}, data de nascimento ${lacuna(dataBR(paciente.data_nascimento), 28)}, portador(a) do documento de identificação (RG ou CPF) nº ${lacuna(paciente.cpf, 40)}, autorizo o(a) profissional ${lacuna(profissional.nome, 70)}, ${lacuna(crp, 30)}, a realizar o acompanhamento psicoterapêutico da criança/adolescente acima identificado(a), bem como os encaminhamentos cabíveis.</p>
+
+    <p>Todas as intervenções e documentos produzidos serão regidos pelos dispositivos legais vigentes, em especial pelo disposto na Resolução CFP nº 10, de 2005 (Código de Ética Profissional do Psicólogo), bem como pelas demais Resoluções da Psicologia relacionadas ao exercício da profissão.</p>
+
+    <p>Em especial, serão garantidos à criança ou adolescente o sigilo das informações e a preservação da dignidade e da intimidade durante a prestação dos serviços de que trata esta autorização.</p>
+
+    <div class="local">
+      <div class="campo-local" style="width:75mm">
+        <div class="traco"></div>
+        <div class="legenda">Cidade</div>
+      </div>
+      <div class="campo-local" style="width:48mm">
+        <div class="traco data"><span>/</span><span>/</span><span></span></div>
+        <div class="legenda">Data</div>
+      </div>
+    </div>
+    <div class="assinatura">
+      <div class="linha"></div>
+      <p>Responsável Legal pela Criança ou Adolescente</p>
+      ${r.nome_completo ? `<p>${esc(r.nome_completo)}</p>` : ''}
+    </div>
+
+    <div class="assinatura">
+      <div class="linha"></div>
+      <p>${esc(profissional.nome)}${crp ? ` — ${esc(crp)}` : ''}</p>
+    </div>
+  </div>`,
+    ESTILO_TERMO
+  );
+}
+
+async function gerarPdfTermo(pacienteId, janelaPai) {
+  const { paciente, nomeLimpo } = carregarPaciente(pacienteId);
+  const profissional = lerProfissional();
+  const responsavel = banco.obterResponsavel(pacienteId);
+  const html = htmlTermo(paciente, responsavel, profissional);
+  return salvarPdf(janelaPai, `Termo de autorização - ${nomeLimpo}.pdf`, html, 'Salvar termo em PDF');
+}
+
+module.exports = { gerarPdfPaciente, gerarPdfAnalista, gerarPdfTermo };
