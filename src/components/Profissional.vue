@@ -1,10 +1,10 @@
 <script setup>
 // Janela de configurações: foto, nome, CRP e e-mail do profissional.
 // Nome, CRP e e-mail vão para o cabeçalho dos PDFs; a foto só aparece no perfil da lateral.
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, provide } from 'vue';
 import Confirmacao from './Confirmacao.vue';
 import CampoMascara from './CampoMascara.vue';
-import { mensagemDeErro } from '../utilitarios.js';
+import { mensagemDeErro, erroMascara } from '../utilitarios.js';
 
 const emit = defineEmits(['fechar', 'salvo']);
 const dados = ref({ nome: '', crp: '', email: '', foto: '' });
@@ -21,6 +21,10 @@ const pendente = computed(
   () => retratoSalvo.value !== null && JSON.stringify(dados.value) !== retratoSalvo.value
 );
 const confirmandoFechar = ref(false);
+
+// Avisa o campo do CRP que o salvamento foi tentado, para ele mostrar o aviso de incompleto.
+const tentou = ref(false);
+provide('tentouSalvar', tentou);
 
 // O erro do e-mail some assim que o usuário mexe no campo.
 watch(() => dados.value.email, () => {
@@ -72,12 +76,13 @@ function pedirFechar() {
 
 async function salvar() {
   erro.value = '';
+  tentou.value = true;
   // O e-mail é conferido aqui (e não pelo navegador) para o aviso aparecer embaixo do campo.
   const email = dados.value.email.trim();
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    erroEmail.value = 'E-mail inválido';
-    return;
-  }
+  const emailInvalido = email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  erroEmail.value = emailInvalido ? 'E-mail inválido' : '';
+  // CRP incompleto não é salvo: o aviso aparece embaixo do campo.
+  if (emailInvalido || erroMascara('crp', dados.value.crp)) return;
   try {
     await window.api.profissional.salvar({ ...dados.value });
     emit('salvo');
@@ -111,7 +116,7 @@ async function salvar() {
         <input v-model="dados.nome" />
       </label>
       <label>CRP
-        <CampoMascara v-model="dados.crp" mascara="##/######" />
+        <CampoMascara v-model="dados.crp" tipo="crp" />
       </label>
       <label>E-mail
         <input v-model="dados.email" type="email" />

@@ -1,12 +1,12 @@
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, provide } from 'vue';
 import Confirmacao from './Confirmacao.vue';
 import Colapsavel from './Colapsavel.vue';
 import CampoValor from './CampoValor.vue';
 import CampoMascara from './CampoMascara.vue';
 import Sessoes from './Sessoes.vue';
 import Responsavel from './Responsavel.vue';
-import { reaisParaCentavos, centavosParaCampo, mensagemDeErro } from '../utilitarios.js';
+import { reaisParaCentavos, centavosParaCampo, mensagemDeErro, erroMascara, statusData } from '../utilitarios.js';
 import { lerSecao, guardarSecao, esquecerPaciente } from '../preferencias.js';
 import CampoData from './CampoData.vue';
 
@@ -38,6 +38,26 @@ watch(dadosAbertos, (valor) => {
 const erroNome = ref('');
 const vazioErrosValor = () => ({ valor: '', data: '' });
 const errosValor = ref(vazioErrosValor());
+
+// Avisa os campos (CampoMascara e CampoData) que o salvamento foi tentado: a partir daí, os campos
+// incompletos mostram o aviso mesmo sem terem perdido o foco.
+const tentou = ref(false);
+provide('tentouSalvar', tentou);
+
+// Campos com máscara e a conferência de cada um. Incompleto ou inválido impede o salvamento
+// (o aviso aparece embaixo do campo) e abre a seção, se estiver recolhida. Campo vazio não é erro.
+const TIPOS_MASCARA = { cpf: 'cpf', celular: 'telefone', contato_emergencia_telefone: 'telefone' };
+const CAMPOS_DATA = ['data_nascimento', 'data_inicio'];
+
+function conferirCampos(dados) {
+  tentou.value = true;
+  const comErro =
+    Object.entries(TIPOS_MASCARA).some(([campo, tipo]) => erroMascara(tipo, dados[campo])) ||
+    CAMPOS_DATA.some((campo) => statusData(dados[campo])) ||
+    statusData(dataCampo.value);
+  if (comErro) dadosAbertos.value = true;
+  return !comErro;
+}
 
 // Seção do responsável: tem botões próprios, mas o paciente novo grava os dados dela junto com a ficha.
 const responsavelRef = ref(null);
@@ -159,6 +179,8 @@ function conferirValor() {
   const texto = valorCampo.value.trim();
   const data = dataCampo.value;
   if (!texto && !data) return { novo: null };
+  // Data incompleta ou inválida: o aviso aparece no próprio campo, e conferirCampos cuida de bloquear.
+  if (statusData(data)) return null;
   if (!texto) {
     errosValor.value.valor = 'Preencha o valor ou apague a data';
     return null;
@@ -190,7 +212,8 @@ function salvar() {
     // Tudo é conferido antes de gravar, para não ficar um cadastro pela metade.
     const nomeOk = conferirNome(dados);
     const conferido = conferirValor();
-    if (!nomeOk || !conferido) return;
+    const camposOk = conferirCampos(dados);
+    if (!nomeOk || !conferido || !camposOk) return;
     const valorNovo = conferido.novo;
 
     if (!novo) {
@@ -201,6 +224,7 @@ function salvar() {
       await carregarHistorico();
       restaurarCampoValor();
       editando.value = false;
+      tentou.value = false;
       emit('salvo', props.pacienteId);
       return;
     }
@@ -220,6 +244,7 @@ function cancelarEdicao() {
     await carregarFicha();
     erroNome.value = '';
     errosValor.value = vazioErrosValor();
+    tentou.value = false;
     editando.value = false;
   });
 }
@@ -302,7 +327,7 @@ function excluir() {
             <span v-if="erroNome" class="erro">{{ erroNome }}</span>
           </label>
           <label>CPF
-            <CampoMascara v-model="ficha.cpf" mascara="###.###.###-##" />
+            <CampoMascara v-model="ficha.cpf" tipo="cpf" />
           </label>
           <div class="coluna">
             <label>Data de nascimento
@@ -320,7 +345,7 @@ function excluir() {
             <CampoData v-model="ficha.data_inicio" />
           </label>
           <label>Celular
-            <CampoMascara v-model="ficha.celular" mascara="(##) #####-####" />
+            <CampoMascara v-model="ficha.celular" tipo="telefone" />
           </label>
           <label>Contato de emergência (nome)
             <input v-model="ficha.contato_emergencia_nome" />
@@ -339,7 +364,7 @@ function excluir() {
 
         <fieldset :disabled="!editando">
           <label>Contato de emergência (número)
-            <CampoMascara v-model="ficha.contato_emergencia_telefone" mascara="(##) #####-####" />
+            <CampoMascara v-model="ficha.contato_emergencia_telefone" tipo="telefone" />
           </label>
           <label class="largo">Queixa inicial
             <textarea v-model="ficha.queixa_inicial" />

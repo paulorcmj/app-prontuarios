@@ -1,10 +1,12 @@
 <script setup>
 // Campo de data (ou data e hora) digitado com máscara, com um calendário no estilo do app.
 // O valor que entra e sai é o do banco: "AAAA-MM-DD", ou "AAAA-MM-DDTHH:MM" com a prop "hora".
-// Enquanto a data está incompleta ou inválida, o valor é vazio e o campo fica com a borda de erro.
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+// Enquanto a data está incompleta ou inválida, o valor é o próprio texto digitado (com "_" nas posições
+// vazias), para o usuário continuar de onde parou. O formulário que usa o campo confere esse valor
+// com statusData() e não deixa salvar, então o banco nunca recebe texto pela metade.
+import { ref, computed, watch, inject, onMounted, onBeforeUnmount } from 'vue';
 import CampoMascara from './CampoMascara.vue';
-import { isoValido } from '../utilitarios.js';
+import { isoValido, statusData, posicoes } from '../utilitarios.js';
 
 const props = defineProps({ hora: Boolean, disabled: Boolean, id: String });
 const modelo = defineModel({ type: String, default: '' });
@@ -21,9 +23,11 @@ const texto = ref('');
 const pad = (n) => String(n).padStart(2, '0');
 const isoDe = (d) => `${String(d.getFullYear()).padStart(4, '0')}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-function paraTexto(iso) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(iso ?? '');
-  if (!m) return '';
+// Do valor do banco para o texto da tela. O que não é uma data do banco é um texto ainda
+// incompleto ou inválido, que volta para a tela como estava.
+function paraTexto(valor) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(valor ?? '');
+  if (!m) return valor ?? '';
   const data = `${m[3]}/${m[2]}/${m[1]}`;
   return props.hora ? `${data} ${m[4] ?? '00'}:${m[5] ?? '00'}` : data;
 }
@@ -39,15 +43,40 @@ function paraIso(t) {
   return isoValido(iso, props.hora) ? iso : null;
 }
 
-// Texto digitado e valor do banco andam juntos; o texto só é refeito quando o valor muda por fora.
-watch(modelo, (iso) => {
-  if (iso !== (paraIso(texto.value) ?? '')) texto.value = paraTexto(iso);
+// O valor do campo é a data do banco, ou o texto digitado enquanto ele não é uma data.
+const modeloDe = (t) => paraIso(t) ?? t;
+
+// Texto digitado e valor andam juntos; o texto só é refeito quando o valor muda por fora.
+watch(modelo, (valor) => {
+  if (valor !== modeloDe(texto.value)) texto.value = paraTexto(valor);
 }, { immediate: true });
 watch(texto, (t) => {
-  modelo.value = paraIso(t) ?? '';
+  modelo.value = modeloDe(t);
 });
 
-const invalida = computed(() => texto.value.length === mascara.value.length && paraIso(texto.value) === null);
+// Aviso embaixo do campo. Data completa que não existe aparece na hora. Data incompleta só aparece com um
+// buraco no meio do texto, ou depois de tentar salvar e sair do campo: quem ainda está digitando não é avisado.
+const tentou = inject('tentouSalvar', ref(false));
+const focado = ref(false);
+const status = computed(() => statusData(modelo.value, props.hora));
+const temBuraco = computed(() => posicoes(modelo.value).includes(''));
+const mostrarErro = computed(
+  () =>
+    status.value === 'invalida' ||
+    (status.value === 'incompleta' && (temBuraco.value || (tentou.value && !focado.value)))
+);
+const mensagem = computed(
+  () => `${props.hora ? 'Data ou hora' : 'Data'} ${status.value === 'invalida' ? 'inválida' : 'incompleta'}`
+);
+
+// Passar do campo para o botão do calendário não conta como sair.
+function aoEntrar() {
+  focado.value = true;
+}
+
+function aoSairDoCampo(evento) {
+  if (!raiz.value.contains(evento.relatedTarget)) focado.value = false;
+}
 
 // ---- Calendário ----
 const aberto = ref(false);
@@ -157,7 +186,13 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="campo-data">
-    <div ref="raiz" class="campo-com-botao caixa-botao" :class="{ invalida }">
+    <div
+      ref="raiz"
+      class="campo-com-botao caixa-botao"
+      :class="{ invalida: mostrarErro }"
+      @focusin="aoEntrar"
+      @focusout="aoSairDoCampo"
+    >
       <CampoMascara :id="id" v-model="texto" :mascara="mascara" :disabled="disabled" />
       <button
         type="button"
@@ -226,7 +261,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </div>
-    <span v-if="invalida" class="erro">{{ hora ? 'Data ou hora inválida' : 'Data inválida' }}</span>
+    <span v-if="mostrarErro" class="erro">{{ mensagem }}</span>
   </div>
 </template>
 

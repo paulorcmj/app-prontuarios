@@ -9,6 +9,7 @@ export function ativarGlobais() {
   ligado = true;
   ligarDicas();
   ligarPrisaoDeFoco();
+  ligarRotulos();
 }
 
 function ligarDicas() {
@@ -128,4 +129,32 @@ function ligarPrisaoDeFoco() {
       primeiro.focus();
     }
   });
+}
+
+// Clicar no espaço vazio ao lado do texto de um rótulo não leva o foco para o campo: só o texto
+// do rótulo faz isso. O rótulo ocupa a linha toda, então sem isso qualquer clique ao lado ativaria o campo.
+// Caixas de marcar e envio de arquivo ficam como estão (o texto delas é o próprio botão).
+function ligarRotulos() {
+  document.addEventListener('click', (evento) => {
+    const rotulo = evento.target;
+    if (!(rotulo instanceof HTMLLabelElement)) return;
+    const controle = rotulo.control;
+    if (!controle || controle.matches('input[type="checkbox"], input[type="radio"], input[type="file"]')) return;
+    if (!cliqueNoTexto(rotulo, evento)) evento.preventDefault();
+  });
+}
+
+// O clique caiu em cima de algum texto do próprio rótulo (não do campo que ele envolve)?
+function cliqueNoTexto(rotulo, evento) {
+  const faixa = document.createRange();
+  for (const no of rotulo.childNodes) {
+    if (no.nodeType !== Node.TEXT_NODE || !no.textContent.trim()) continue;
+    faixa.selectNodeContents(no);
+    for (const r of faixa.getClientRects()) {
+      if (evento.clientX >= r.left && evento.clientX <= r.right && evento.clientY >= r.top && evento.clientY <= r.bottom) {
+        return true;
+      }
+    }
+  }
+  return false;
 }

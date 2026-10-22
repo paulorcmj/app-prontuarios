@@ -24,6 +24,8 @@ function formatarData(iso) {
 
 // Escolher pasta e fazer backup seguem o mesmo roteiro; a ação devolve false quando o usuário cancela a janela de arquivos.
 async function executar(acao, mensagem) {
+  // Os botões não ficam apagados durante a operação; o app só ignora um segundo clique.
+  if (ocupado.value) return;
   erro.value = '';
   feito.value = '';
   ocupado.value = true;
@@ -44,6 +46,7 @@ const fazerAgora = () => executar(() => window.api.backup.agora(), 'Backup feito
 // Carregar backup em duas etapas: o app abre o seletor e confere o arquivo; a confirmação
 // aparece aqui na tela e só depois da resposta a troca acontece.
 async function carregar() {
+  if (ocupado.value) return;
   erro.value = '';
   feito.value = '';
   ocupado.value = true;
@@ -87,7 +90,7 @@ async function confirmarCarregar() {
 
       <div class="campo">
         <span>Pasta dos backups</span>
-        <div class="campo-pasta">
+        <div class="caixa-botao">
           <input
             readonly
             :value="estado.pasta"
@@ -96,11 +99,10 @@ async function confirmarCarregar() {
           />
           <button
             type="button"
-            class="botao-pasta"
+            class="botao-embutido"
             :class="{ destaque: !estado.pasta }"
             :title="estado.pasta ? 'Trocar pasta' : 'Escolher pasta'"
             :aria-label="estado.pasta ? 'Trocar pasta' : 'Escolher pasta'"
-            :disabled="ocupado"
             @click="escolherPasta"
           >
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -116,9 +118,9 @@ async function confirmarCarregar() {
       <p v-if="feito">{{ feito }}</p>
 
       <div class="acoes">
-        <button type="button" class="perigo" :disabled="ocupado" @click="carregar">Carregar backup</button>
+        <button type="button" class="perigo" @click="carregar">Carregar backup</button>
         <button type="button" @click="emit('fechar')">Voltar</button>
-        <button type="button" class="principal" :disabled="ocupado || !estado.pasta" @click="fazerAgora">Fazer backup</button>
+        <button type="button" class="principal" :disabled="!estado.pasta" @click="fazerAgora">Fazer backup</button>
       </div>
     </div>
 
@@ -145,46 +147,19 @@ async function confirmarCarregar() {
   font-size: 13px;
 }
 
-/* Campo do endereço e botão de pasta lado a lado, sem espaço entre eles:
-   o botão ocupa a altura toda do campo e herda os cantos arredondados da direita. */
-.campo-pasta {
-  display: flex;
-}
-
-.campo-pasta input {
-  flex: 1;
-  min-width: 0;
-  border-radius: 10px 0 0 10px;
-  /* O endereço é só para leitura: o cursor não sugere digitação. */
+/* O endereço é só para leitura: o cursor não sugere digitação. */
+.caixa-botao input {
   cursor: default;
 }
 
-.botao-pasta {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  padding: 0;
-  /* margem negativa para a borda do botão cobrir a borda direita do campo, sem linha dupla */
-  margin-left: -1px;
-  border: 1px solid var(--borda);
-  border-radius: 0 10px 10px 0;
-  background: var(--roxo-fundo);
-  color: var(--roxo);
-}
-.botao-pasta:hover {
-  background: var(--borda);
-}
 /* Sem pasta escolhida, o botão chama a atenção: é o único passo obrigatório. */
-.botao-pasta.destaque {
-  border-color: var(--roxo);
+.botao-embutido.destaque {
   background: var(--roxo);
   color: var(--sobre-roxo);
 }
-.botao-pasta.destaque:hover {
+.botao-embutido.destaque:hover {
   background: var(--roxo-hover);
-  border-color: var(--roxo-hover);
+  color: var(--sobre-roxo);
 }
 
 /* Botão desativado: apagado e sem reação ao mouse. */
@@ -199,11 +174,10 @@ button.principal:disabled:hover {
   background: var(--roxo);
   border-color: var(--roxo);
 }
-.botao-pasta:disabled:hover {
+.botao-embutido:disabled:hover {
   background: var(--roxo-fundo);
 }
-.botao-pasta.destaque:disabled:hover {
+.botao-embutido.destaque:disabled:hover {
   background: var(--roxo);
-  border-color: var(--roxo);
 }
 </style>

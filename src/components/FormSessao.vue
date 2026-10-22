@@ -1,9 +1,10 @@
 <script setup>
 // Formulário de sessão, usado tanto para sessão nova quanto para edição no lugar.
 // "pendente" avisa que há texto sem salvar: nesse caso o Cancelar pede confirmação.
-import { ref, watch } from 'vue';
+import { ref, watch, provide } from 'vue';
 import Confirmacao from './Confirmacao.vue';
 import CampoData from './CampoData.vue';
+import { statusData } from '../utilitarios.js';
 
 const props = defineProps({ rotuloSalvar: String, pendente: Boolean, contorno: Boolean });
 const emit = defineEmits(['salvar', 'cancelar']);
@@ -20,12 +21,18 @@ watch(() => dados.value.titulo, () => {
   erros.value.titulo = '';
 });
 
+// Avisa o campo de data que o salvamento foi tentado, para ele mostrar o aviso de incompleto.
+const tentou = ref(false);
+provide('tentouSalvar', tentou);
+
 function enviar() {
+  tentou.value = true;
   erros.value = {
     data_hora: dados.value.data_hora ? '' : 'Informe a data e a hora',
     titulo: dados.value.titulo.trim() ? '' : 'Título obrigatório',
   };
-  if (erros.value.data_hora || erros.value.titulo) return;
+  // Data incompleta ou inválida também impede o envio; o aviso aparece no próprio campo.
+  if (erros.value.data_hora || erros.value.titulo || statusData(dados.value.data_hora, true)) return;
   emit('salvar');
 }
 

@@ -3,7 +3,7 @@ import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import Confirmacao from './Confirmacao.vue';
 import Colapsavel from './Colapsavel.vue';
 import FormSessao from './FormSessao.vue';
-import { dataHoraBR, agoraLocal, mensagemDeErro } from '../utilitarios.js';
+import { dataHoraBR, mensagemDeErro } from '../utilitarios.js';
 import { lerOrdem, guardarOrdem, lerSecao, guardarSecao } from '../preferencias.js';
 
 const props = defineProps({ pacienteId: Number });
@@ -86,9 +86,9 @@ const alteracaoPendente = computed(() => novaAlterada.value || edicaoAlterada.va
 watch(alteracaoPendente, (pendente) => emit('alteracao-pendente', pendente));
 
 function formularioVazio() {
-  return { data_hora: agoraLocal(), titulo: '', relato: '', anotacoes: '' };
+  // A data e a hora começam vazias: o usuário preenche (ou escolhe no calendário).
+  return { data_hora: '', titulo: '', relato: '', anotacoes: '' };
 }
-
 // O datetime-local entrega "AAAA-MM-DDTHH:MM"; o banco guarda com espaço no lugar do T.
 function paraBanco(f) {
   return { data_hora: f.data_hora.replace('T', ' '), titulo: f.titulo, relato: f.relato, anotacoes: f.anotacoes };

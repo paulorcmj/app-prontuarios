@@ -2,11 +2,11 @@
 // Seção do responsável, para paciente menor de idade. Num paciente já cadastrado ela tem
 // botões próprios (editar, salvar, gerar termo). Num paciente novo não há onde gravar ainda:
 // os dados ficam na tela e a ficha chama salvarPara() depois de criar o paciente.
-import { ref, shallowRef, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, shallowRef, computed, watch, onMounted, onBeforeUnmount, provide } from 'vue';
 import Colapsavel from './Colapsavel.vue';
 import CampoMascara from './CampoMascara.vue';
 import Confirmacao from './Confirmacao.vue';
-import { mensagemDeErro } from '../utilitarios.js';
+import { mensagemDeErro, erroMascara, statusData } from '../utilitarios.js';
 import { lerSecao, guardarSecao } from '../preferencias.js';
 import CampoData from './CampoData.vue';
 
@@ -28,6 +28,21 @@ const editando = ref(novo);
 const existe = ref(false);
 const erro = ref('');
 const confirmandoCancelamento = ref(false);
+
+// Avisa os campos que o salvamento foi tentado, para mostrarem o aviso de incompleto.
+const tentou = ref(false);
+provide('tentouSalvar', tentou);
+
+// Campo incompleto ou inválido impede o salvamento; campo vazio não é erro.
+function conferir() {
+  tentou.value = true;
+  const ok =
+    !erroMascara('cpf', dados.value.cpf) &&
+    !erroMascara('telefone', dados.value.contato) &&
+    !statusData(dados.value.data_nascimento);
+  if (!ok) aberto.value = true;
+  return ok;
+}
 
 // O termo salvo no banco (só nome e data) e a mudança que espera o Salvar:
 // null (nada mudou), 'remover' ou o arquivo escolhido, com os bytes.
@@ -63,6 +78,7 @@ async function carregar() {
   termoSalvo.value = r?.termo_nome ? { nome: r.termo_nome, anexadoEm: r.termo_anexado_em } : null;
   termoPendente.value = null;
   retratoSalvo.value = retrato();
+  tentou.value = false;
   // Sem responsável salvo, a seção já abre para preenchimento.
   editando.value = !r;
 }
@@ -85,6 +101,7 @@ function temConteudo() {
 }
 
 function salvar() {
+  if (!conferir()) return;
   executar(async () => {
     // A cópia ({ ...dados }) tira o proxy do Vue, que o IPC não consegue enviar.
     await window.api.responsavel.salvar(props.pacienteId, { ...dados.value }, termoPendente.value);
@@ -151,7 +168,7 @@ function gerarTermo() {
           <input v-model="dados.nome_completo" :disabled="!editando" />
         </label>
         <label>CPF do responsável
-          <CampoMascara v-model="dados.cpf" mascara="###.###.###-##" :disabled="!editando" />
+          <CampoMascara v-model="dados.cpf" tipo="cpf" :disabled="!editando" />
         </label>
         <label>Data de nascimento do responsável
           <CampoData v-model="dados.data_nascimento" :disabled="!editando" />
@@ -160,7 +177,7 @@ function gerarTermo() {
           <input v-model="dados.cidade_estado" :disabled="!editando" />
         </label>
         <label>Contato do responsável
-          <CampoMascara v-model="dados.contato" mascara="(##) #####-####" :disabled="!editando" />
+          <CampoMascara v-model="dados.contato" tipo="telefone" :disabled="!editando" />
         </label>
         <label class="largo">Endereço completo do responsável
           <input v-model="dados.endereco" :disabled="!editando" />
@@ -267,5 +284,11 @@ function gerarTermo() {
   height: 30px;
   padding: 0 12px;
   font-size: 13px;
+}
+
+/* A caixa do termo tem o mesmo fundo que o botão ganha ao passar o mouse; aqui o brilho é um tom acima.
+   O "Remover" mantém o brilho vermelho dele. */
+.termo-botoes button:not(.perigo):hover {
+  background: var(--borda);
 }
 </style>

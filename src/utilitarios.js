@@ -62,3 +62,66 @@ export function isoValido(iso, comHora = false) {
   campo.value = iso;
   return campo.value !== '';
 }
+
+// ---- Campos com máscara ----
+
+// Formatos de cada tipo de campo. Uma lista vai do menor formato para o maior: o campo usa o menor em que
+// cabem as posições já usadas (telefone fixo, com 8 dígitos, e celular, com 9, dividem o campo). Uma função
+// recebe a quantidade de posições usadas e devolve o formato: o CRP mostra 5 posições depois da barra e
+// cresce conforme o número pede, até 8.
+export const MASCARAS = {
+  cpf: ['###.###.###-##'],
+  telefone: ['(##) ####-####', '(##) #####-####'],
+  crp: (usadas) => `##/${'#'.repeat(Math.min(8, Math.max(5, usadas - 2)))}`,
+};
+
+// Quantidade mínima de dígitos para o campo estar completo.
+const MINIMOS = { cpf: 11, telefone: 10, crp: 3 };
+
+const NOMES_MASCARA = { cpf: 'CPF', telefone: 'Telefone', crp: 'CRP' };
+
+// Quantidade de posições de dígito de uma máscara.
+export const quantos = (mascara) => [...mascara].filter((c) => c === '#').length;
+
+// A menor máscara em que cabem as posições já usadas.
+export function mascaraPara(mascaras, usadas) {
+  if (typeof mascaras === 'function') return mascaras(usadas);
+  return mascaras.find((m) => quantos(m) >= usadas) ?? mascaras[mascaras.length - 1];
+}
+
+// Posições de um texto com máscara: cada dígito é uma posição, e "_" é uma posição vazia ('').
+// Os separadores ("/", ".", "-", parênteses e espaço) não contam.
+export function posicoes(texto) {
+  return [...(texto ?? '')].filter((c) => /[\d_]/.test(c)).map((c) => (c === '_' ? '' : c));
+}
+
+// Confere os dois dígitos verificadores e recusa sequências repetidas (111.111.111-11).
+export function cpfValido(digitos) {
+  if (!/^\d{11}$/.test(digitos) || /^(\d)\1{10}$/.test(digitos)) return false;
+  for (const tamanho of [9, 10]) {
+    let soma = 0;
+    for (let i = 0; i < tamanho; i++) soma += Number(digitos[i]) * (tamanho + 1 - i);
+    if (((soma * 10) % 11) % 10 !== Number(digitos[tamanho])) return false;
+  }
+  return true;
+}
+
+// Mensagem de erro de um campo com máscara, ou '' se está certo. Campo vazio não é erro.
+export function erroMascara(tipo, texto) {
+  const pos = posicoes(texto);
+  if (!pos.some(Boolean)) return '';
+  if (pos.length < MINIMOS[tipo] || pos.includes('')) return `${NOMES_MASCARA[tipo]} incompleto`;
+  if (tipo === 'cpf' && !cpfValido(pos.join(''))) return 'CPF inválido';
+  return '';
+}
+
+// Situação de uma data (ou data e hora) guardada num campo de data: '' se está certa ou vazia,
+// 'incompleta' se faltam dígitos e 'invalida' se está completa mas não existe.
+// O valor certo é "AAAA-MM-DD"; o que ainda não virou data fica como o texto digitado.
+export function statusData(valor, comHora = false) {
+  if (!valor) return '';
+  if (isoValido(valor, comHora)) return '';
+  const pos = posicoes(valor);
+  const completo = pos.length === (comHora ? 12 : 8) && !pos.includes('');
+  return completo ? 'invalida' : 'incompleta';
+}
