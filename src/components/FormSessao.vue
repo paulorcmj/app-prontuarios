@@ -4,7 +4,7 @@
 import { ref, watch } from 'vue';
 import Confirmacao from './Confirmacao.vue';
 
-const props = defineProps({ rotuloSalvar: String, pendente: Boolean });
+const props = defineProps({ rotuloSalvar: String, pendente: Boolean, contorno: Boolean });
 const emit = defineEmits(['salvar', 'cancelar']);
 const dados = defineModel({ type: Object });
 const confirmando = ref(false);
@@ -57,7 +57,7 @@ function descartar() {
     </label>
     <div class="acoes">
       <button type="button" @click="pedirCancelamento">Cancelar</button>
-      <button type="submit" class="principal">{{ rotuloSalvar }}</button>
+      <button type="submit" :class="contorno ? 'contorno' : 'principal'">{{ rotuloSalvar }}</button>
     </div>
 
     <Confirmacao

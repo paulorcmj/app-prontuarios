@@ -52,7 +52,7 @@ async function remover() {
     <div class="campo">
       <label for="campo-valor">Valor da sessão (R$)</label>
       <div class="campo-com-botao">
-        <input id="campo-valor" v-model="valor" inputmode="decimal" placeholder="R$ 0,00" :disabled="!editando" />
+        <input id="campo-valor" v-model="valor" inputmode="decimal" placeholder="R$ 0,00" :class="{ 'sem-valor': !valor }" :disabled="!editando" />
         <span ref="menuRef" class="menu-historico">
           <button
             type="button"
@@ -81,7 +81,7 @@ async function remover() {
 
     <div class="campo">
       <label for="campo-data">A partir de</label>
-      <input id="campo-data" v-model="data" type="date" :disabled="!editando" />
+      <input id="campo-data" v-model="data" type="date" :class="{ 'sem-valor': !data }" :disabled="!editando" />
       <p v-if="erros?.data" class="erro">{{ erros.data }}</p>
     </div>
 

@@ -15,6 +15,8 @@
   --sobre-roxo: #1a1230;
   --perigo: #f07a93;
   --perigo-borda: #5c2b3b;
+  /* Altura única dos botões (pílula e caixa), das caixas de busca e dos títulos de seção. */
+  --altura-botao: 38px;
 }
 
 * { box-sizing: border-box; }
@@ -28,6 +30,8 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; font-size: 15px; color: v
 ::-webkit-scrollbar-button { display: none; }
 
 button, input, textarea { font: inherit; color: inherit; }
+/* Todos os títulos: mesma fonte do app, mesmo tamanho. */
+h2, h3 { margin: 0; font-family: inherit; font-size: 22px; font-weight: 600; }
 /* Botões não quebram o texto em duas linhas; onde o texto é longo (lista, títulos), a regra é desfeita. */
 button { padding: 6px 14px; border: 1px solid var(--borda-forte); border-radius: 10px; background: transparent; cursor: pointer; white-space: nowrap; }
 button:hover { background: var(--campo); }
@@ -40,24 +44,35 @@ button.contorno { border-color: var(--roxo); color: var(--roxo); }
 button.contorno:hover { background: var(--roxo-fundo); }
 
 input, textarea { width: 100%; padding: 8px 12px; border: 1px solid var(--borda); border-radius: 10px; background: var(--campo); }
-input::placeholder, textarea::placeholder { color: var(--texto-suave); }
+/* O text-fill-color também vale para o texto de sugestão: sem ele, o campo travado o mostra em branco. */
+input::placeholder, textarea::placeholder { color: var(--texto-suave); -webkit-text-fill-color: var(--texto-suave); }
 input:focus, textarea:focus { outline: none; border-color: var(--roxo); }
-/* O "x" que limpa a busca, no tom do app. */
-input[type='search']::-webkit-search-cancel-button { -webkit-appearance: none; width: 14px; height: 14px; margin: 0 2px 0 6px; cursor: pointer; background-color: var(--texto-suave); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M2 2l8 8M10 2l-8 8'/%3E%3C/svg%3E") center / 10px no-repeat; }
-input[type='search']::-webkit-search-cancel-button:hover { background-color: var(--roxo); }
+/* Caixas de busca: mesma altura dos botões; o espaço da direita é do botão de ordenar. */
+input[type='search'] { height: var(--altura-botao); padding-right: 46px; }
+/* Com texto digitado, abre espaço também para o "x" de limpar (.limpar-busca). */
+input[type='search']:not(:placeholder-shown) { padding-right: 74px; }
+/* O "x" nativo fica escondido: o app usa um botão próprio. */
+input[type='search']::-webkit-search-cancel-button { display: none; }
 /* O campo cresce conforme o texto, em vez de ter a alça de redimensionar. */
 textarea { min-height: 4.5em; resize: none; field-sizing: content; }
 /* Campos travados continuam legíveis: só ficam sem o foco roxo. */
 input:disabled, textarea:disabled { color: var(--texto); -webkit-text-fill-color: var(--texto); opacity: 1; }
+/* Campo de data ou valor ainda sem nada: o formato aparece apagado, como nos campos com máscara.
+   A classe é posta pelo componente enquanto o campo está vazio. */
+input.sem-valor, input.sem-valor:disabled { color: var(--texto-suave); -webkit-text-fill-color: var(--texto-suave); }
 label, .campo { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--texto-suave); }
 
-/* Marcador (caixinha) igual em todo o app. O estilo geral de "input" (largura total, borda, fundo)
-   também pegaria o marcador, por isso ele é redefinido aqui. */
-input[type='checkbox'] { appearance: none; flex: none; width: 20px; height: 20px; margin: 0; padding: 0; border: 1px solid var(--borda-forte); border-radius: 6px; background: var(--campo); cursor: pointer; }
+/* Marcador (caixinha) igual em todo o app, do tamanho da letra ao lado (1em). O estilo geral
+   de "input" (largura total, borda, fundo) também pegaria o marcador, por isso ele é redefinido aqui. */
+input[type='checkbox'] { appearance: none; flex: none; width: 1em; height: 1em; margin: 0; padding: 0; border: 1px solid var(--borda-forte); border-radius: 4px; background: var(--campo); cursor: pointer; }
 input[type='checkbox']:hover { border-color: var(--roxo); }
-input[type='checkbox']:checked { border-color: var(--roxo); background: var(--roxo) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%231a1230' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 8.5l3.5 3.5L13 4.5'/%3E%3C/svg%3E") center / 14px no-repeat; }
+input[type='checkbox']:checked { border-color: var(--roxo); background: var(--roxo) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%231a1230' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 8.5l3.5 3.5L13 4.5'/%3E%3C/svg%3E") center / 75% no-repeat; }
 input[type='checkbox']:focus-visible { border-color: var(--roxo); }
-input[type='checkbox']:disabled { cursor: default; }
+/* Travado (ficha fora da edição): apagado, cursor bloqueado e só um leve brilho ao passar o mouse,
+   igual ao botão "Continuar" da tela da chave de segurança. */
+input[type='checkbox']:disabled { opacity: 0.5; cursor: not-allowed; }
+input[type='checkbox']:disabled:not(:checked):hover { border-color: var(--borda-forte); }
+input[type='checkbox']:disabled:hover { filter: brightness(1.25); }
 
 /* Estrutura do app: a lateral (largura definida pelo App.vue) e a área da ficha, que ocupa o resto
    da janela, com a barra de rolagem no canto. */
@@ -79,12 +94,19 @@ input[type='checkbox']:disabled { cursor: default; }
 .lista li button { width: 100%; text-align: left; border-color: transparent; border-radius: 10px; color: var(--texto); white-space: normal; overflow-wrap: anywhere; }
 .lista li button.selecionado { background: var(--campo); font-weight: 600; box-shadow: inset 3px 0 0 var(--roxo); }
 
-/* Busca com o botão de ordenar embutido no canto direito da caixa (na lateral e nas sessões) */
-.busca-linha { position: relative; display: flex; }
-.busca-linha input { flex: 1; min-width: 0; padding-right: 42px; }
-.botao-ordenar { position: absolute; top: 4px; right: 4px; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border-radius: 8px; background: var(--roxo-fundo); color: var(--texto-suave); }
+/* Busca com o botão de ordenar encaixado na ponta direita da caixa (na lateral e nas sessões).
+   O botão cobre a borda direita da caixa, sem folga, e herda os cantos arredondados dela. */
+.busca-linha, .busca-sessoes { position: relative; }
+.busca-linha { display: flex; }
+.busca-linha input { flex: 1; min-width: 0; }
+.botao-ordenar { position: absolute; top: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; width: 40px; padding: 0; border: 1px solid var(--borda); border-radius: 0 10px 10px 0; background: var(--roxo-fundo); color: var(--texto-suave); }
 .botao-ordenar:hover, .botao-ordenar[aria-expanded='true'] { background: var(--roxo-fundo); color: var(--roxo); }
 .botao-ordenar svg { display: block; }
+.busca-sessoes input { display: block; }
+/* Com a busca em foco, o botão de ordenar acompanha a cor da borda. */
+.busca-linha:focus-within .botao-ordenar, .busca-sessoes:focus-within .botao-ordenar { border-color: var(--roxo); }
+.limpar-busca { position: absolute; top: 0; bottom: 0; right: 40px; display: flex; align-items: center; justify-content: center; width: 30px; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--texto-suave); }
+.limpar-busca:hover { background: transparent; color: var(--roxo); }
 
 /* Menus suspensos (perfil e ordenação) */
 .perfil-menu, .ordem-menu { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20; padding: 6px; border: 1px solid var(--borda-forte); border-radius: 12px; background: var(--superficie); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
@@ -94,9 +116,11 @@ input[type='checkbox']:disabled { cursor: default; }
 .ordem-menu svg { flex: none; }
 
 /* Grupos de botões quebram de linha quando falta espaço, em vez de saírem da caixa.
-   Os botões em pílula têm o mesmo tamanho em todo o app. */
+   Os botões em pílula têm a mesma altura em todo o app; a largura varia com o texto. */
 .acoes { display: flex; flex-wrap: wrap; gap: 8px; }
-.acoes button, .acoes .menu-pdf > button { padding: 6px 14px; font-size: 15px; border-radius: 999px; }
+.acoes > button, .acoes > .menu-pdf > button { display: inline-flex; align-items: center; justify-content: center; height: var(--altura-botao); padding: 0 14px; font-size: 15px; border-radius: 999px; }
+/* Botões em caixa (Novo paciente, Nova sessão): mesma altura das pílulas. */
+.lista-topo > button, .colapsavel-acoes > button { display: inline-flex; align-items: center; justify-content: center; height: var(--altura-botao); padding: 0 14px; }
 /* Botões no fim de um formulário, na ponta direita */
 .acoes.rodape { justify-content: flex-end; margin-top: 16px; }
 .erro { margin: 0; color: var(--perigo); }
@@ -110,10 +134,21 @@ input[type='checkbox']:disabled { cursor: default; }
 .colapsavel-cabecalho { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
 .colapsavel-botao { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; min-width: 0; padding: 4px 0; border: 0; background: transparent; font-weight: 600; font-size: 1.05em; text-align: left; white-space: normal; overflow-wrap: break-word; }
 .colapsavel-botao:hover { background: transparent; }
+/* Títulos das seções (Dados do paciente, Dados do responsável, Sessões): uma linha só e
+   exatamente a altura dos botões e da busca que ficam ao lado. As sessões da lista ficam de fora. */
+.colapsavel:not(.sessao) > .colapsavel-cabecalho .colapsavel-botao { flex-wrap: nowrap; height: var(--altura-botao); padding: 0; white-space: nowrap; }
 .colapsavel-acoes { display: flex; align-items: center; justify-content: flex-end; flex: 1 1 340px; gap: 8px; min-width: 0; }
-/* Busca das sessões: a caixa e o botão de ordenar embutido formam um bloco só. */
-.busca-sessoes { position: relative; flex: 1 1 140px; min-width: 0; max-width: 320px; }
-.busca-sessoes input { padding-right: 42px; }
+/* Busca das sessões: a caixa e o botão de ordenar formam um bloco só. */
+/* Cabeçalho de "Sessões": título, busca e "Nova sessão" numa linha; quando o cabeçalho fica
+   estreito, a busca desce para uma linha própria e o "Nova sessão" continua ao lado do título. */
+.bloco > .colapsavel-cabecalho { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px 12px; container-type: inline-size; }
+.bloco > .colapsavel-cabecalho .colapsavel-acoes { display: contents; }
+.bloco > .colapsavel-cabecalho .colapsavel-botao { grid-column: 1; grid-row: 1; }
+.bloco > .colapsavel-cabecalho .colapsavel-acoes > button { grid-column: 3; grid-row: 1; }
+.busca-sessoes { grid-column: 2; grid-row: 1; justify-self: end; width: 100%; max-width: 320px; min-width: 0; }
+@container (max-width: 470px) {
+  .busca-sessoes { grid-column: 1 / -1; grid-row: 2; max-width: none; }
+}
 .busca-sessoes .ordem-menu { left: auto; min-width: 200px; }
 /* Cabeçalho que não quebra: o título e o botão ficam sempre na mesma linha. */
 .colapsavel.sem-quebra .colapsavel-cabecalho { flex-wrap: nowrap; }
@@ -124,12 +159,17 @@ input[type='checkbox']:disabled { cursor: default; }
 .seta.aberta { transform: rotate(45deg); }
 .contagem { margin-left: 6px; font-size: 13px; font-weight: 400; color: var(--texto-suave); }
 
-/* Ficha, centralizada na área da ficha. O título ocupa a primeira linha e os botões vão para
-   baixo dele quando não cabem lado a lado, sempre na ponta direita; o nome só quebra entre palavras. */
 .ficha { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 760px; margin-inline: auto; }
-.ficha-topo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
-.ficha-topo h2 { flex: 1 1 260px; min-width: 0; margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: 30px; font-weight: 400; overflow-wrap: break-word; }
-.ficha-topo .acoes { flex: 0 1 auto; justify-content: flex-end; margin-left: auto; }
+/* Topo da ficha: nome na esquerda e "Gerar PDF" na direita, com "Excluir" e "Arquivar" entre eles.
+   Quando o topo fica estreito, "Excluir" e "Arquivar" descem para a linha de baixo, na ponta direita. */
+.ficha-topo { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; row-gap: 12px; container-type: inline-size; }
+.ficha-topo h2 { grid-column: 1; grid-row: 1; margin-right: 12px; overflow-wrap: break-word; }
+.ficha-topo .topo-sec { grid-column: 2; grid-row: 1; margin-right: 8px; justify-content: flex-end; }
+.ficha-topo .topo-sec:last-child { margin-right: 0; }
+.ficha-topo .topo-pdf { grid-column: 3; grid-row: 1; }
+@container (max-width: 560px) {
+  .ficha-topo .topo-sec { grid-column: 1 / -1; grid-row: 2; margin-right: 0; }
+}
 .ficha .colapsavel { padding: 20px 24px; border: 1px solid var(--borda); border-radius: 18px; background: var(--superficie); }
 /* Duas colunas quando há espaço (cada uma com pelo menos 300 px); uma só quando a janela é estreita. */
 .grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 12px 16px; }
@@ -155,6 +195,8 @@ input[type='checkbox']:disabled { cursor: default; }
 /* Sessões (também centralizadas, na mesma largura da ficha) */
 .bloco { width: 100%; max-width: 760px; margin: 24px auto 0; padding: 20px 24px; border: 1px solid var(--borda); border-radius: 18px; background: var(--superficie); }
 .form-sessao { display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; padding: 14px; border: 1px solid var(--roxo); border-radius: 14px; background: var(--campo); }
+/* Na edição, o contorno roxo já é o da própria sessão; o formulário não leva borda de novo. */
+.sessao .form-sessao { margin-bottom: 0; padding: 6px 0 4px; border: 0; background: transparent; }
 .sessoes { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .sessoes li { scroll-margin: 16px; }
 .sessao { padding: 8px 16px; border: 1px solid var(--borda); border-radius: 14px; background: var(--campo); }
@@ -164,9 +206,6 @@ input[type='checkbox']:disabled { cursor: default; }
 .sessao-corpo { display: flex; flex-direction: column; gap: 10px; padding-bottom: 6px; }
 .rotulo { margin: 0; font-size: 12px; color: var(--texto-suave); }
 .texto { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-/* Anotações são só do psicanalista: caixa tracejada para separar do relato. */
-.anotacoes { color: var(--texto-suave); }
-textarea.anotacoes, .anotacoes textarea { border-style: dashed; background: var(--lateral); }
 
 /* Perfil no topo da lateral: foto, nome e, embaixo dele, o CRP em letra pequena e apagada. */
 .perfil { position: relative; }
@@ -177,7 +216,7 @@ textarea.anotacoes, .anotacoes textarea { border-style: dashed; background: var(
 .perfil-crp { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 400; color: var(--texto-suave); opacity: 0.75; }
 
 /* Foto do perfil: círculo com borda, ou a inicial do nome quando não há foto */
-.avatar { flex: none; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; overflow: hidden; border: 2px solid var(--roxo); border-radius: 50%; background: var(--roxo-fundo); color: var(--roxo); font-family: Georgia, 'Times New Roman', serif; font-size: 18px; }
+.avatar { flex: none; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; overflow: hidden; border: 2px solid var(--roxo); border-radius: 50%; background: var(--roxo-fundo); color: var(--roxo); font-size: 18px; }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
 .avatar-grande { width: 72px; height: 72px; font-size: 28px; }
 
@@ -195,8 +234,7 @@ textarea.anotacoes, .anotacoes textarea { border-style: dashed; background: var(
 
 /* Janela de configurações */
 .janela-dados { display: flex; flex-direction: column; gap: 12px; }
-.janela-dados h3 { margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: 20px; font-weight: 400; }
 .janela-dados p { margin: 0; }
 .foto-linha { display: flex; align-items: center; gap: 14px; }
-.botao-arquivo { flex-direction: row; padding: 6px 14px; border: 1px solid var(--borda-forte); border-radius: 999px; font-size: 15px; color: var(--texto); cursor: pointer; }
+.botao-arquivo { flex-direction: row; align-items: center; justify-content: center; height: var(--altura-botao); padding: 0 14px; border: 1px solid var(--borda-forte); border-radius: 999px; font-size: 15px; color: var(--texto); cursor: pointer; }
 .botao-arquivo:hover { background: var(--campo); }

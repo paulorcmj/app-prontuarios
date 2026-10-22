@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue';
 import { mensagemDeErro } from './utilitarios.js';
 import ConfirmarBackup from './components/ConfirmarBackup.vue';
+import CampoSenha from './components/CampoSenha.vue';
 
 const emit = defineEmits(['liberado']);
 
@@ -157,10 +158,10 @@ async function copiar() {
       <h3>Prontuários</h3>
       <p class="vazio">Crie uma senha para proteger os prontuários. Ela será pedida toda vez que o app for aberto.</p>
       <label>Senha
-        <input type="password" v-model="senha" autocomplete="new-password" autofocus />
+        <CampoSenha v-model="senha" autocomplete="new-password" autofocus />
       </label>
       <label>Repita a senha
-        <input type="password" v-model="confirmacao" autocomplete="new-password" />
+        <CampoSenha v-model="confirmacao" autocomplete="new-password" />
       </label>
       <p v-if="erro" class="erro">{{ erro }}</p>
       <div class="acoes">
@@ -172,7 +173,7 @@ async function copiar() {
     <form v-else-if="modo === 'entrar'" class="janela janela-dados" @submit.prevent="entrar">
       <h3>Prontuários</h3>
       <label>Senha
-        <input type="password" v-model="senha" autocomplete="current-password" autofocus />
+        <CampoSenha v-model="senha" autocomplete="current-password" autofocus />
       </label>
       <p v-if="erro" class="erro">{{ erro }}</p>
       <div class="acoes">
@@ -189,10 +190,10 @@ async function copiar() {
         <input v-model="chaveDigitada" autocomplete="off" spellcheck="false" autofocus />
       </label>
       <label>Senha nova
-        <input type="password" v-model="senha" autocomplete="new-password" />
+        <CampoSenha v-model="senha" autocomplete="new-password" />
       </label>
       <label>Repita a senha nova
-        <input type="password" v-model="confirmacao" autocomplete="new-password" />
+        <CampoSenha v-model="confirmacao" autocomplete="new-password" />
       </label>
       <p v-if="erro" class="erro">{{ erro }}</p>
       <div class="acoes">

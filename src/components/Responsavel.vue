@@ -7,6 +7,7 @@ import Colapsavel from './Colapsavel.vue';
 import CampoMascara from './CampoMascara.vue';
 import Confirmacao from './Confirmacao.vue';
 import { mensagemDeErro } from '../utilitarios.js';
+import { lerSecao, guardarSecao } from '../preferencias.js';
 
 const props = defineProps({ pacienteId: [Number, String] });
 const emit = defineEmits(['alteracao-pendente']);
@@ -16,7 +17,11 @@ const vazio = () => Object.fromEntries(CAMPOS.map((c) => [c, '']));
 
 const novo = props.pacienteId === 'novo';
 const dados = ref(vazio());
-const aberto = ref(true);
+// Cada paciente lembra se esta seção estava aberta; paciente novo começa aberto.
+const aberto = ref(novo ? true : lerSecao(props.pacienteId, 'responsavel', true));
+watch(aberto, (valor) => {
+  if (!novo) guardarSecao(props.pacienteId, 'responsavel', valor);
+});
 const editando = ref(novo);
 // Já existe um responsável salvo para este paciente?
 const existe = ref(false);
@@ -148,7 +153,7 @@ function gerarTermo() {
           <CampoMascara v-model="dados.cpf" mascara="###.###.###-##" :disabled="!editando" />
         </label>
         <label>Data de nascimento do responsável
-          <input v-model="dados.data_nascimento" type="date" :disabled="!editando" />
+          <input v-model="dados.data_nascimento" type="date" :class="{ 'sem-valor': !dados.data_nascimento }" :disabled="!editando" />
         </label>
         <label>Cidade/Estado do responsável
           <input v-model="dados.cidade_estado" :disabled="!editando" />
@@ -160,26 +165,26 @@ function gerarTermo() {
           <input v-model="dados.endereco" :disabled="!editando" />
         </label>
 
-        <div class="largo termo">
-          <span class="rotulo">Termo de autorização assinado</span>
-          <div class="termo-linha">
-            <span v-if="termoAtual" class="termo-nome" :title="termoAtual.nome">
-              {{ termoAtual.nome }}
-              <small v-if="termoAtual.novo">será anexado ao salvar</small>
-              <small v-else-if="termoAtual.anexadoEm">anexado em {{ dataBR(termoAtual.anexadoEm) }}</small>
-            </span>
-            <span v-else-if="removendo" class="vazio">O termo será removido ao salvar</span>
-            <span v-else class="vazio">Nenhum termo anexado</span>
+<div class="largo termo">
+  <span class="rotulo">Termo de autorização assinado</span>
+  <div class="termo-linha">
+    <span v-if="termoAtual" class="termo-texto termo-nome" :title="termoAtual.nome">
+      <span class="termo-arquivo">{{ termoAtual.nome }}</span>
+      <small v-if="termoAtual.novo">será anexado ao salvar</small>
+      <small v-else-if="termoAtual.anexadoEm">anexado em {{ dataBR(termoAtual.anexadoEm) }}</small>
+    </span>
+    <span v-else-if="removendo" class="termo-texto vazio">O termo será removido ao salvar</span>
+    <span v-else class="termo-texto vazio">Nenhum termo anexado</span>
 
-            <div class="termo-botoes">
-              <template v-if="editando">
-                <button type="button" @click="anexar">{{ termoAtual ? 'Substituir' : 'Anexar termo assinado' }}</button>
-                <button v-if="termoAtual" type="button" class="perigo" @click="remover">Remover</button>
-              </template>
-              <button v-else-if="termoAtual" type="button" @click="abrir">Abrir</button>
-            </div>
-          </div>
-        </div>
+    <div class="termo-botoes">
+      <template v-if="editando">
+        <button v-if="termoAtual" type="button" class="perigo" @click="remover">Remover</button>
+        <button type="button" @click="anexar">{{ termoAtual ? 'Substituir' : 'Anexar termo assinado' }}</button>
+      </template>
+      <button v-else-if="termoAtual" type="button" @click="abrir">Abrir</button>
+    </div>
+  </div>
+</div>
       </div>
 
       <!-- Um paciente novo grava o responsável junto com a ficha, então não tem botões aqui. -->
@@ -212,14 +217,15 @@ function gerarTermo() {
   gap: 6px;
 }
 
-/* Caixa tracejada, no mesmo estilo dos campos que guardam algo que não é texto. */
+/* Altura fixa: o que muda dentro da caixa (nome do arquivo, botões) nunca muda o tamanho do campo.
+   Textos longos são cortados com reticências e os botões não quebram de linha. */
 .termo-linha {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px 12px;
-  padding: 10px 12px;
+  gap: 12px;
+  height: 60px;
+  padding: 0 12px;
   border: 1px dashed var(--borda-forte);
   border-radius: 10px;
   background: var(--campo);
@@ -227,11 +233,22 @@ function gerarTermo() {
   font-size: 14px;
 }
 
+.termo-texto {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 .termo-nome {
   display: flex;
   flex-direction: column;
-  min-width: 0;
-  overflow-wrap: anywhere;
+}
+
+.termo-arquivo,
+.termo-nome small,
+.termo-texto.vazio {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .termo-nome small {
@@ -241,12 +258,13 @@ function gerarTermo() {
 
 .termo-botoes {
   display: flex;
-  flex-wrap: wrap;
+  flex: none;
   gap: 8px;
 }
 
 .termo-botoes button {
-  padding: 4px 12px;
+  height: 30px;
+  padding: 0 12px;
   font-size: 13px;
 }
 </style>

@@ -4,6 +4,7 @@ import Confirmacao from './Confirmacao.vue';
 import Colapsavel from './Colapsavel.vue';
 import FormSessao from './FormSessao.vue';
 import { dataHoraBR, agoraLocal, mensagemDeErro } from '../utilitarios.js';
+import { lerOrdem, guardarOrdem, lerSecao, guardarSecao } from '../preferencias.js';
 
 const props = defineProps({ pacienteId: Number });
 const emit = defineEmits(['alteracao-pendente']);
@@ -11,12 +12,16 @@ const emit = defineEmits(['alteracao-pendente']);
 const sessoes = ref([]);
 
 // Ordem da lista. O banco devolve em ordem cronológica; a tela escolhe como mostrar.
+// A escolha vale para todos os pacientes e fica guardada entre uma abertura do app e outra.
 const ORDENS = [
   { valor: 'recentes', rotulo: 'Mais recentes' },
   { valor: 'antigas', rotulo: 'Mais antigas' },
   { valor: 'modificadas', rotulo: 'Última modificação' },
 ];
-const ordem = ref('recentes');
+const CHAVE_ORDEM = 'ordem-sessoes';
+const ordem = ref(lerOrdem(CHAVE_ORDEM, ORDENS.map((o) => o.valor), 'recentes'));
+watch(ordem, (valor) => guardarOrdem(CHAVE_ORDEM, valor));
+
 const menuOrdemAberto = ref(false);
 const buscaRef = ref(null);
 
@@ -51,9 +56,17 @@ const erro = ref('');
 const excluindo = ref(null);
 const novaRef = ref(null);
 
-const secaoAberta = ref(true);
-// Toda sessão começa fechada; aqui ficam as que o usuário abriu (id -> true).
+// A seção "Sessões" e cada sessão lembram, por paciente, se estavam abertas.
+const secaoAberta = ref(lerSecao(props.pacienteId, 'sessoes', true));
+watch(secaoAberta, (valor) => guardarSecao(props.pacienteId, 'sessoes', valor));
+
+// Estado de cada sessão (id -> aberta). Sem registro guardado, a sessão começa fechada.
 const abertas = ref({});
+
+function definirAberta(id, aberto) {
+  abertas.value[id] = aberto;
+  guardarSecao(props.pacienteId, `sessao-${id}`, aberto);
+}
 
 // Sessão nova: formulário no topo, só aberto pelo botão.
 const novaAberta = ref(false);
@@ -83,6 +96,12 @@ function paraBanco(f) {
 
 async function carregar() {
   sessoes.value = await window.api.sessoes.listar(props.pacienteId, busca.value);
+  // Sessões que ainda não têm estado na tela recebem o que ficou guardado.
+  for (const s of sessoes.value) {
+    if (!(s.id in abertas.value)) {
+      abertas.value[s.id] = lerSecao(props.pacienteId, `sessao-${s.id}`, false);
+    }
+  }
 }
 
 onMounted(() => {
@@ -105,7 +124,7 @@ async function mostrarSessao(id) {
 }
 
 function alternarSessao(id, aberto) {
-  abertas.value[id] = aberto;
+  definirAberta(id, aberto);
   if (aberto) mostrarSessao(id);
 }
 
@@ -134,9 +153,9 @@ async function salvarNova() {
     // Limpa a busca para a sessão salva não ficar escondida pelo filtro.
     busca.value = '';
     await carregar();
-    // A sessão criada já nasce aberta.
+    // A sessão criada nasce aberta e continua assim até o usuário fechar.
     if (id) {
-      abertas.value[id] = true;
+      definirAberta(id, true);
       mostrarSessao(id);
     }
   } catch (e) {
@@ -145,7 +164,7 @@ async function salvarNova() {
 }
 
 function editar(sessao) {
-  abertas.value[sessao.id] = true;
+  definirAberta(sessao.id, true);
   edicao.value = {
     id: sessao.id,
     data_hora: sessao.data_hora.replace(' ', 'T'),
@@ -188,6 +207,11 @@ async function excluir() {
     <template #acoes>
       <div ref="buscaRef" class="busca-sessoes">
         <input v-model="busca" type="search" aria-label="Buscar nas sessões" placeholder="Buscar nas sessões" />
+        <button v-if="busca" type="button" class="limpar-busca" title="Limpar busca" aria-label="Limpar busca" @click="busca = ''">
+          <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M2 2l8 8M10 2l-8 8" />
+          </svg>
+        </button>
         <button
           type="button"
           class="botao-ordenar"
@@ -197,8 +221,8 @@ async function excluir() {
           :aria-expanded="menuOrdemAberto"
           @click="menuOrdemAberto = !menuOrdemAberto"
         >
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-            <path d="M4 7h16M7 12h10M10 17h4" />
+          <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+            <path d="M3 5.5h14M3 10h10M3 14.5h6" />
           </svg>
         </button>
         <div v-if="menuOrdemAberto" class="ordem-menu">
@@ -206,12 +230,12 @@ async function excluir() {
             v-for="o in ORDENS"
             :key="o.valor"
             type="button"
-            :class="{ escolhida: ordem === o.valor }"
+            :class="{ escolhida: o.valor === ordem }"
             @click="escolherOrdem(o.valor)"
           >
-            {{ o.rotulo }}
-            <svg v-if="ordem === o.valor" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M3 8.5l3.5 3.5L13 4.5" />
+            <span>{{ o.rotulo }}</span>
+            <svg v-if="o.valor === ordem" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3.5 8.5l3 3 6-7" />
             </svg>
           </button>
         </div>
@@ -246,7 +270,8 @@ async function excluir() {
           <FormSessao
             v-if="edicao?.id === s.id"
             v-model="edicao"
-            rotulo-salvar="Salvar alterações"
+            rotulo-salvar="Salvar"
+            contorno
             :pendente="edicaoAlterada"
             @salvar="salvarEdicao"
             @cancelar="edicao = null"
@@ -258,7 +283,7 @@ async function excluir() {
             </div>
             <div v-if="s.anotacoes">
               <p class="rotulo">Anotações da sessão</p>
-              <p class="texto anotacoes">{{ s.anotacoes }}</p>
+              <p class="texto">{{ s.anotacoes }}</p>
             </div>
             <div class="acoes">
               <button type="button" class="perigo" @click="excluindo = s">Excluir</button>

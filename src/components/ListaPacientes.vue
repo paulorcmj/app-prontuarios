@@ -98,6 +98,11 @@ const ordenados = computed(() => [...props.pacientes].sort(COMPARACOES[ordem.val
       </div>
       <div ref="raizOrdem" class="busca-linha">
         <input v-model="busca" type="search" placeholder="Buscar por nome" />
+        <button v-if="busca" type="button" class="limpar-busca" title="Limpar busca" aria-label="Limpar busca" @click="busca = ''">
+          <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M2 2l8 8M10 2l-8 8" />
+          </svg>
+        </button>
         <button
           type="button"
           class="botao-ordenar"

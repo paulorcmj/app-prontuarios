@@ -7,6 +7,7 @@ import CampoMascara from './CampoMascara.vue';
 import Sessoes from './Sessoes.vue';
 import Responsavel from './Responsavel.vue';
 import { reaisParaCentavos, centavosParaCampo, mensagemDeErro } from '../utilitarios.js';
+import { lerSecao, guardarSecao, esquecerPaciente } from '../preferencias.js';
 
 const props = defineProps({ pacienteId: [Number, String] });
 const emit = defineEmits(['salvo', 'mudou-situacao', 'alteracao-pendente']);
@@ -26,7 +27,11 @@ const situacao = ref('ativo');
 const erro = ref('');
 const confirmandoExclusao = ref(false);
 const editando = ref(novo);
-const dadosAbertos = ref(true);
+// Cada paciente lembra se esta seção estava aberta; paciente novo começa aberto.
+const dadosAbertos = ref(novo ? true : lerSecao(props.pacienteId, 'dados', true));
+watch(dadosAbertos, (valor) => {
+  if (!novo) guardarSecao(props.pacienteId, 'dados', valor);
+});
 
 // Erros mostrados embaixo de cada campo (o erro geral, no topo, fica para as falhas do banco).
 const erroNome = ref('');
@@ -264,6 +269,7 @@ function excluir() {
   confirmandoExclusao.value = false;
   executar(async () => {
     await window.api.pacientes.excluir(props.pacienteId);
+    esquecerPaciente(props.pacienteId);
     emit('mudou-situacao');
   });
 }
@@ -274,11 +280,13 @@ function excluir() {
     <header class="ficha-topo">
       <h2>{{ novo ? 'Novo paciente' : nomeSalvo }}</h2>
       <!-- Excluir e Arquivar ficam visíveis também durante a edição; o Gerar PDF some. -->
-      <div v-if="!novo" class="acoes">
+      <div v-if="!novo" class="acoes topo-sec">
         <button type="button" class="perigo" @click="confirmandoExclusao = true">Excluir</button>
         <button v-if="situacao === 'ativo'" type="button" @click="comAviso(arquivar, pendente)">Arquivar</button>
         <button v-else type="button" @click="comAviso(desarquivar, pendente)">Desarquivar</button>
-        <div v-if="!editando" class="menu-pdf">
+      </div>
+      <div v-if="!novo && !editando" class="acoes topo-pdf">
+        <div class="menu-pdf">
           <button type="button" class="principal" aria-haspopup="menu" :aria-expanded="menuPdfAberto" @click="menuPdfAberto = !menuPdfAberto">Gerar PDF</button>
           <div v-if="menuPdfAberto" class="pdf-menu">
             <button type="button" @click="gerarPdfPaciente">PDF do paciente</button>
@@ -302,7 +310,7 @@ function excluir() {
           </label>
           <div class="coluna">
             <label>Data de nascimento
-              <input v-model="ficha.data_nascimento" type="date" />
+              <input v-model="ficha.data_nascimento" type="date" :class="{ 'sem-valor': !ficha.data_nascimento }" />
             </label>
             <label class="marcar">
               <input v-model="ficha.menor_de_idade" type="checkbox" />
@@ -313,7 +321,7 @@ function excluir() {
             <input v-model="ficha.cidade_estado" />
           </label>
           <label>Início do atendimento
-            <input v-model="ficha.data_inicio" type="date" />
+            <input v-model="ficha.data_inicio" type="date" :class="{ 'sem-valor': !ficha.data_inicio }" />
           </label>
           <label>Celular
             <CampoMascara v-model="ficha.celular" mascara="(##) #####-####" />
