@@ -47,6 +47,9 @@ function limparTemporarios() {
   }
 }
 
+// Janela principal, guardada para trazer à frente quando o usuário tenta abrir o app de novo.
+let janelaPrincipal = null;
+
 function criarJanela() {
   const janela = new BrowserWindow({
     width: 1100,
@@ -60,6 +63,9 @@ function criarJanela() {
       nodeIntegration: false,
     },
   });
+  
+  janelaPrincipal = janela;
+  
   // Alt+F4 e o X da janela passam por aqui. Com alterações sem salvar, a janela não fecha:
   // a tela mostra o aviso do app e só depois pede o fechamento de verdade.
   let fechamentoConfirmado = false;
@@ -258,6 +264,8 @@ function registrarIpcRestauracao() {
     pendente = null;
     banco.fechar();
     backup.substituirArquivos(arquivos);
+    // O app reaberto precisa conseguir a trava de instância única, então ela é liberada antes.
+    app.releaseSingleInstanceLock();
     app.relaunch();
     app.exit(0);
   });
@@ -329,15 +337,31 @@ function registrarIpcAcesso() {
   });
 }
 
-app.whenReady().then(() => {
-  limparTemporarios();
-  registrarIpcAcesso();
-  registrarIpcRestauracao();
-  // Sem a barra de menu padrão (File, Edit, View, Window).
-  Menu.setApplicationMenu(null);
-  criarJanela();
-});
+// O app só abre uma vez: duas instâncias abririam o mesmo banco ao mesmo tempo.
+// A trava vale por pasta de dados, e ela é a mesma no app instalado e em desenvolvimento.
+const primeiraInstancia = app.requestSingleInstanceLock();
 
-app.on('will-quit', limparTemporarios);
+if (!primeiraInstancia) {
+  app.quit();
+} else {
+  // Quem tenta abrir de novo só traz a janela que já existe para a frente.
+  app.on('second-instance', () => {
+    if (!janelaPrincipal) return;
+    if (janelaPrincipal.isMinimized()) janelaPrincipal.restore();
+    janelaPrincipal.focus();
+  });
 
-app.on('window-all-closed', () => app.quit());
+  app.whenReady().then(() => {
+    limparTemporarios();
+    registrarIpcAcesso();
+    registrarIpcRestauracao();
+    // Sem a barra de menu padrão (File, Edit, View, Window).
+    Menu.setApplicationMenu(null);
+    criarJanela();
+  });
+
+  // Fica dentro do else para a instância bloqueada não apagar os temporários da que está aberta.
+  app.on('will-quit', limparTemporarios);
+
+  app.on('window-all-closed', () => app.quit());
+}
