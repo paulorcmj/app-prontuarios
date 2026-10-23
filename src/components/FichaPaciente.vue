@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount, provide } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, provide, nextTick } from 'vue';
 import Confirmacao from './Confirmacao.vue';
 import Colapsavel from './Colapsavel.vue';
 import CampoValor from './CampoValor.vue';
@@ -11,7 +11,7 @@ import { lerSecao, guardarSecao, esquecerPaciente } from '../preferencias.js';
 import CampoData from './CampoData.vue';
 
 const props = defineProps({ pacienteId: [Number, String] });
-const emit = defineEmits(['salvo', 'mudou-situacao', 'alteracao-pendente']);
+const emit = defineEmits(['salvo', 'mudou-situacao', 'alteracao-pendente', 'cancelado']);
 
 // Campos de texto da ficha. A marca de menor de idade é tratada à parte (é verdadeiro ou falso).
 const CAMPOS = [
@@ -33,6 +33,10 @@ const dadosAbertos = ref(novo ? true : lerSecao(props.pacienteId, 'dados', true)
 watch(dadosAbertos, (valor) => {
   if (!novo) guardarSecao(props.pacienteId, 'dados', valor);
 });
+
+// Id do paciente criado neste cadastro. Se o responsável falhar depois da criação, a nova
+// tentativa atualiza esse paciente em vez de criar outro.
+const idCriado = ref(null);
 
 // Erros mostrados embaixo de cada campo (o erro geral, no topo, fica para as falhas do banco).
 const erroNome = ref('');
@@ -59,7 +63,9 @@ function conferirCampos(dados) {
   return !comErro;
 }
 
-// Seção do responsável: tem botões próprios, mas o paciente novo grava os dados dela junto com a ficha.
+// Seção do responsável. Num paciente já cadastrado ela tem botões próprios. No cadastro novo ela
+// fica montada o tempo todo (só escondida quando a caixa de menor de idade é desmarcada), para o que
+// foi digitado não se perder, e os dados são gravados junto com a ficha.
 const responsavelRef = ref(null);
 const responsavelPendente = ref(false);
 
@@ -90,13 +96,11 @@ const alterado = computed(
       dataCampo.value !== dataSalva.value)
 );
 
-// Formulários de sessão e a seção do responsável com texto sem salvar também contam como alteração pendente.
+// Formulários de sessão e a seção do responsável com texto sem salvar também contam como alteração
+// pendente. No cadastro novo isso vale até para o que está escondido com a caixa desmarcada.
 const sessoesPendentes = ref(false);
 const pendente = computed(
-  () =>
-    alterado.value ||
-    sessoesPendentes.value ||
-    (ficha.value.menor_de_idade && responsavelPendente.value)
+  () => alterado.value || sessoesPendentes.value || responsavelPendente.value
 );
 
 // O App.vue usa isso para proteger a saída da ficha.
@@ -163,6 +167,19 @@ async function executar(acao) {
   }
 }
 
+// O Salvar do cadastro fica no fim da tela, longe dos campos. Quando algo falha, a tela sobe até o
+// primeiro aviso de erro; se ele já está visível, nada se mexe.
+async function rolarAteErro() {
+  await nextTick();
+  const alvo = document.querySelector('.painel .erro, .painel .invalida, .painel [aria-invalid="true"]');
+  if (!alvo) return;
+  const caixa = alvo.getBoundingClientRect();
+  const area = alvo.closest('.painel').getBoundingClientRect();
+  if (caixa.top < area.top || caixa.bottom > area.bottom) {
+    alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
 // O nome é conferido aqui (e não por "required") para o aviso aparecer embaixo do campo,
 // mesmo com a seção recolhida: nesse caso ela é aberta.
 function conferirNome(dados) {
@@ -205,15 +222,21 @@ function iniciarEdicao() {
   editando.value = true;
 }
 
-function salvar() {
-  executar(async () => {
+async function salvar() {
+  let falhou = false;
+  await executar(async () => {
     // A cópia ({ ...ficha }) tira o proxy do Vue, que o IPC não consegue enviar.
     const dados = { ...ficha.value };
     // Tudo é conferido antes de gravar, para não ficar um cadastro pela metade.
+    // No cadastro novo, o responsável só entra na conferência com a caixa marcada.
     const nomeOk = conferirNome(dados);
     const conferido = conferirValor();
     const camposOk = conferirCampos(dados);
-    if (!nomeOk || !conferido || !camposOk) return;
+    const responsavelOk = novo && dados.menor_de_idade ? responsavelRef.value.conferir() : true;
+    if (!nomeOk || !conferido || !camposOk || !responsavelOk) {
+      falhou = true;
+      return;
+    }
     const valorNovo = conferido.novo;
 
     if (!novo) {
@@ -229,13 +252,23 @@ function salvar() {
       return;
     }
 
-    const id = await window.api.pacientes.criar(dados);
-    if (valorNovo) {
-      // Se falhar, o paciente já existe e o valor pode ser registrado depois, editando a ficha.
-      await window.api.valores.adicionar(id, valorNovo.centavos, valorNovo.data).catch(() => {});
+    let id = idCriado.value;
+    if (id === null) {
+      id = await window.api.pacientes.criar(dados);
+      idCriado.value = id;
+      if (valorNovo) {
+        // Se falhar, o paciente já existe e o valor pode ser registrado depois, editando a ficha.
+        await window.api.valores.adicionar(id, valorNovo.centavos, valorNovo.data).catch(() => {});
+      }
+    } else {
+      // Segunda tentativa, depois de uma falha no responsável: o paciente já existe.
+      await window.api.pacientes.atualizar(id, dados);
     }
+    // Responsável todo vazio não é gravado (não há nada para guardar).
+    if (dados.menor_de_idade) await responsavelRef.value.salvarPara(id);
     emit('salvo', id);
   });
+  if (falhou || erro.value) await rolarAteErro();
 }
 
 // Descarta o que foi digitado e volta ao que está salvo no banco.
@@ -247,6 +280,11 @@ function cancelarEdicao() {
     tentou.value = false;
     editando.value = false;
   });
+}
+
+// No cadastro novo não há o que restaurar: a ficha fecha e o pai volta à tela inicial.
+function cancelarCadastro() {
+  emit('cancelado');
 }
 
 // Depois de remover uma linha do histórico, o valor atual pode ter mudado.
@@ -289,7 +327,7 @@ function excluir() {
 </script>
 
 <template>
-  <form class="ficha" novalidate @submit.prevent="salvar">
+  <form id="ficha-form" class="ficha" novalidate @submit.prevent="salvar">
     <header class="ficha-topo">
       <h2>{{ novo ? 'Novo paciente' : nomeSalvo }}</h2>
       <!-- Excluir e Arquivar ficam visíveis também durante a edição; o Gerar PDF some. -->
@@ -370,11 +408,12 @@ function excluir() {
         </fieldset>
       </div>
 
-      <!-- As chaves impedem o Vue de reaproveitar o mesmo botão: o clique em
+      <!-- Paciente já cadastrado: botões dentro do cartão. No cadastro novo eles ficam no fim da tela.
+           As chaves impedem o Vue de reaproveitar o mesmo botão: o clique em
            "Editar" viraria um envio do formulário ao trocar o tipo do botão. -->
-      <div class="acoes rodape">
+      <div v-if="!novo" class="acoes rodape">
         <template v-if="editando">
-          <button v-if="!novo" key="cancelar" type="button" @click="comAviso(cancelarEdicao, alterado)">Cancelar</button>
+          <button key="cancelar" type="button" @click="comAviso(cancelarEdicao, alterado)">Cancelar</button>
           <button key="salvar" type="submit" class="principal">Salvar</button>
         </template>
         <button v-else key="editar" type="button" class="principal" @click="iniciarEdicao">Editar</button>
@@ -396,13 +435,21 @@ function excluir() {
       @confirmar="confirmarDescarte"
     />
   </form>
-  <!-- Fora do formulário: a seção tem botões próprios e um formulário não pode ficar dentro de outro. -->
+  <!-- Fora do formulário, que não pode conter outro. Paciente já cadastrado: aparece com a caixa marcada.
+       Cadastro novo: fica sempre montada e só é escondida (v-show) com a caixa desmarcada. -->
   <Responsavel
-    v-if="ficha.menor_de_idade && !novo"
+    v-if="novo || ficha.menor_de_idade"
+    v-show="ficha.menor_de_idade"
     ref="responsavelRef"
     :paciente-id="pacienteId"
     @alteracao-pendente="responsavelPendente = $event"
   />
+  <!-- Botões do cadastro novo: valem para a tela toda (paciente e responsável). O Salvar é ligado ao
+       formulário pelo atributo "form", já que está fora dele. -->
+  <div v-if="novo" class="acoes barra-cadastro">
+    <button type="button" @click="comAviso(cancelarCadastro, pendente)">Cancelar</button>
+    <button type="submit" form="ficha-form" class="principal">Salvar</button>
+  </div>
   <Sessoes v-if="!novo" :paciente-id="pacienteId" @alteracao-pendente="sessoesPendentes = $event" />
 </template>
 

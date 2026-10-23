@@ -222,6 +222,13 @@ async function aoSalvar(id) {
   aberto.value = id;
 }
 
+// Cancelar o cadastro fecha a ficha. A lista é recarregada porque, se o responsável falhou
+// depois de o paciente ser criado, ele já existe no banco.
+async function aoCancelarCadastro() {
+  aberto.value = null;
+  await carregarLista();
+}
+
 // Arquivar, desarquivar e excluir tiram o paciente da lista atual.
 async function aoMudarSituacao() {
   aberto.value = null;
@@ -250,6 +257,7 @@ async function aoMudarSituacao() {
         :key="aberto"
         :paciente-id="aberto"
         @salvo="aoSalvar"
+        @cancelado="aoCancelarCadastro"
         @mudou-situacao="aoMudarSituacao"
         @alteracao-pendente="alteracaoPendente = $event"
       />

@@ -4,8 +4,38 @@
 // Se o paciente for menor de idade, os dois levam também os dados do responsável.
 
 const fs = require('fs');
-const { BrowserWindow, dialog } = require('electron');
+const path = require('path');
+const { randomUUID } = require('crypto');
+const { app, BrowserWindow, dialog } = require('electron');
 const banco = require('./banco');
+// O HTML do PDF vai para um arquivo temporário e a janela de impressão o abre por ele. Passar o HTML
+// num endereço "data:" tem limite de uns 2 MB, que um prontuário muito longo pode ultrapassar.
+const PASTA_TEMPORARIA = 'prontuarios-pdf';
+const IDADE_DE_SOBRA_MS = 5 * 60 * 1000;
+
+function apagarArquivo(arquivo) {
+  try {
+    fs.rmSync(arquivo, { force: true, maxRetries: 3, retryDelay: 100 });
+  } catch {
+    // fica para a limpeza da próxima geração
+  }
+}
+
+// Devolve a subpasta temporária do app, criando-a se preciso. Antes, apaga o que sobrou de gerações
+// interrompidas (travamento no meio da impressão); arquivos recentes ficam, pois podem estar em uso.
+function pastaTemporaria() {
+  const pasta = path.join(app.getPath('temp'), PASTA_TEMPORARIA);
+  fs.mkdirSync(pasta, { recursive: true });
+  for (const nome of fs.readdirSync(pasta)) {
+    const arquivo = path.join(pasta, nome);
+    try {
+      if (Date.now() - fs.statSync(arquivo).mtimeMs > IDADE_DE_SOBRA_MS) apagarArquivo(arquivo);
+    } catch {
+      // o arquivo sumiu no meio do caminho
+    }
+  }
+  return pasta;
+}
 
 // Nome, CRP e e-mail vêm da tela de configurações (guardados no banco).
 function lerProfissional() {
@@ -212,10 +242,14 @@ async function salvarPdf(janelaPai, nomeArquivo, html, titulo = 'Salvar prontuá
   });
   if (escolha.canceled) return null;
 
+  // O HTML fica num arquivo temporário, apagado assim que a impressão termina (com ou sem erro).
+  const arquivoTemporario = path.join(pastaTemporaria(), `${randomUUID()}.html`);
+
   // Janela escondida só para imprimir: sem JavaScript e isolada.
   const janela = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false } });
   try {
-    await janela.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    fs.writeFileSync(arquivoTemporario, html, 'utf8');
+    await janela.loadFile(arquivoTemporario);
     const pdf = await janela.webContents.printToPDF({
       preferCSSPageSize: true,
       displayHeaderFooter: true,
@@ -227,6 +261,7 @@ async function salvarPdf(janelaPai, nomeArquivo, html, titulo = 'Salvar prontuá
     fs.writeFileSync(escolha.filePath, pdf);
   } finally {
     janela.destroy();
+    apagarArquivo(arquivoTemporario);
   }
   return escolha.filePath;
 }

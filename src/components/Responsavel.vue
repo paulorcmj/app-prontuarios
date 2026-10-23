@@ -24,8 +24,7 @@ watch(aberto, (valor) => {
   if (!novo) guardarSecao(props.pacienteId, 'responsavel', valor);
 });
 const editando = ref(novo);
-// Já existe um responsável salvo para este paciente?
-const existe = ref(false);
+
 const erro = ref('');
 const confirmandoCancelamento = ref(false);
 
@@ -72,13 +71,12 @@ async function carregar() {
   const r = await window.api.responsavel.obter(props.pacienteId);
   dados.value = vazio();
   if (r) for (const c of CAMPOS) dados.value[c] = r[c] ?? '';
-  existe.value = !!r;
   termoSalvo.value = r?.termo_nome ? { nome: r.termo_nome, anexadoEm: r.termo_anexado_em } : null;
   termoPendente.value = null;
   retratoSalvo.value = retrato();
   tentou.value = false;
-  // Sem responsável salvo, a seção já abre para preenchimento.
-  editando.value = !r;
+  // A seção sempre abre travada, com ou sem responsável salvo; o botão Editar libera o preenchimento.
+  editando.value = false;
 }
 
 onMounted(() => {
@@ -124,7 +122,9 @@ async function salvarPara(id) {
   await window.api.responsavel.salvar(id, { ...dados.value }, termoPendente.value);
 }
 
-defineExpose({ salvarPara });
+// Usadas pela ficha no cadastro novo: conferir() valida os campos antes de o paciente ser criado
+// (e abre a seção se houver erro); salvarPara() grava o responsável depois.
+defineExpose({ salvarPara, conferir });
 
 // O arquivo só é lido aqui; quem grava no banco é o Salvar da seção.
 function anexar() {
@@ -206,7 +206,7 @@ function gerarTermo() {
       <!-- Um paciente novo grava o responsável junto com a ficha, então não tem botões aqui. -->
       <div v-if="!novo" class="acoes rodape">
         <template v-if="editando">
-          <button v-if="existe" key="cancelar" type="button" @click="pedirCancelamento">Cancelar</button>
+          <button key="cancelar" type="button" @click="pedirCancelamento">Cancelar</button>
           <button key="salvar" type="button" class="principal" @click="salvar">Salvar</button>
         </template>
         <button v-else key="editar" type="button" class="principal" @click="editando = true">Editar</button>

@@ -87,12 +87,14 @@ input[type='checkbox']:disabled:hover { filter: brightness(1.25); }
    da janela, com a barra de rolagem no canto. */
 .app { position: relative; display: grid; grid-template-columns: 320px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: 100%; }
 .lista { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; min-width: 0; padding: 16px 16px 0; overflow: hidden; border-right: 1px solid var(--borda); background: var(--lateral); }
-.painel { grid-column: 2; grid-row: 1; padding: 24px; overflow-y: auto; }
+/* O espaço da barra de rolagem fica reservado nos dois lados, para o conteúdo não se mexer
+   (nem sair do centro) quando a barra aparece ou some. */
+.painel { grid-column: 2; grid-row: 1; padding: 24px; overflow-y: auto; scrollbar-gutter: stable both-edges; }
 .vazio { color: var(--texto-suave); }
 
 /* Lateral: o topo (perfil até "Novo paciente") fica parado; só a lista rola. */
 .lista-topo { display: flex; flex: none; flex-direction: column; gap: 10px; }
-.lista-rolagem { flex: 1; min-height: 0; margin-top: 10px; padding-bottom: 16px; overflow-y: auto; }
+.lista-rolagem { flex: 1; min-height: 0; margin-top: 10px; padding-bottom: 16px; overflow-y: auto; scrollbar-gutter: stable; }
 /* As abas ocupam o que o texto pede e dividem o espaço que sobrar; se faltar, o texto é cortado. */
 .abas { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--borda); border-radius: 12px; background: #110e18; }
 .abas button { flex: 1 1 auto; min-width: 0; padding-inline: 8px; overflow: hidden; text-overflow: ellipsis; border-color: transparent; color: var(--texto-suave); }
@@ -133,10 +135,14 @@ input[type='checkbox']:disabled:hover { filter: brightness(1.25); }
 .caixa-botao input { flex: 1; min-width: 0; border: 0; border-radius: 9px 0 0 9px; background: transparent; }
 .caixa-botao .menu-historico { display: flex; }
 .caixa-botao .botao-embutido { position: static; border-width: 0 0 0 1px; border-color: var(--cor-borda); border-radius: 0 9px 9px 0; }
-/* Valor: no botão do histórico (aberto ou focado pelo teclado) acende só o botão, com contorno completo
-   por cima da borda da caixa (margem negativa). Os campos de data não têm esse menu e acendem inteiros. */
+/* Valor: no botão do histórico (aberto ou focado pelo teclado) acende só o botão. O contorno roxo é
+   desenhado por um pseudo-elemento por cima da borda da caixa, sem mexer no tamanho nem na posição do
+   botão (borda ou margem mudariam a largura da linha e o botão andaria ao clicar). Os campos de data
+   não têm esse menu e acendem inteiros. */
 .caixa-botao .menu-historico .botao-embutido[aria-expanded='true'],
-.caixa-botao .menu-historico .botao-embutido:focus-visible { margin: -1px; border: 1px solid var(--roxo); border-radius: 0 10px 10px 0; }
+.caixa-botao .menu-historico .botao-embutido:focus-visible { position: relative; }
+.caixa-botao .menu-historico .botao-embutido[aria-expanded='true']::after,
+.caixa-botao .menu-historico .botao-embutido:focus-visible::after { content: ''; position: absolute; inset: -1px; border: 1px solid var(--roxo); border-radius: 0 10px 10px 0; pointer-events: none; }
 .limpar-busca { position: absolute; top: 0; bottom: 0; right: 40px; display: flex; align-items: center; justify-content: center; width: 30px; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--texto-suave); }
 .limpar-busca:hover { background: transparent; color: var(--roxo); }
 
@@ -155,6 +161,8 @@ input[type='checkbox']:disabled:hover { filter: brightness(1.25); }
 .lista-topo > button, .colapsavel-acoes > button { display: inline-flex; align-items: center; justify-content: center; height: var(--altura-botao); padding: 0 14px; }
 /* Botões no fim de um formulário, na ponta direita */
 .acoes.rodape { justify-content: flex-end; margin-top: 16px; }
+/* Botões do cadastro novo: no fim da tela, na largura da ficha, à direita. */
+.barra-cadastro { width: 100%; max-width: 760px; margin: 16px auto 0; justify-content: flex-end; }
 .erro { margin: 0; color: var(--perigo); }
 
 .fundo { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(8, 6, 14, 0.7); }
