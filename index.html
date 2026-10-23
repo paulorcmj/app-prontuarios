@@ -2,6 +2,11 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
+    <!-- Política de segurança de conteúdo; o vite.config.js troca por uma mais aberta no modo de desenvolvimento -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'"
+    />
     <title>Prontuários</title>
   </head>
   <body>
