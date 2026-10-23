@@ -14,14 +14,14 @@ defineEmits(['cancelar', 'confirmar']);
     @cancelar="$emit('cancelar')"
     @confirmar="$emit('confirmar')"
   >
-    <p><strong>Substituir os dados atuais pelos do backup?</strong></p>
+    <p><strong>Substituir os dados atuais pelos dados do backup?</strong></p>
     <template v-if="dados.jaTemDados">
       <p>Uma cópia dos dados atuais será guardada antes em:</p>
       <p class="caminho">{{ dados.pastaDaCopia }}</p>
     </template>
-    <p>
-      O app vai reiniciar e pedir a senha que valia na data do backup.
-      <template v-if="dados.jaTemDados">O que não foi salvo na tela será perdido.</template>
+    <p class="justificado">
+      O app vai reiniciar. A senha e a chave de recuperação serão as mesmas do backup carregado.
+      <template v-if="dados.jaTemDados">Qualquer alteração não salva será perdida.</template>
     </p>
   </Confirmacao>
 </template>
@@ -31,6 +31,10 @@ defineEmits(['cancelar', 'confirmar']);
   color: var(--texto-suave);
   font-size: 13px;
   overflow-wrap: anywhere;
+}
+
+.justificado {
+  text-align: justify;
 }
 
 /* A confirmação fica maior que a janela de backup que aparece por trás dela,
