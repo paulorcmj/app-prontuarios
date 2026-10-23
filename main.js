@@ -56,16 +56,31 @@ function criarJanela() {
     height: 700,
     minWidth: 720,
     minHeight: 520,
+    // Escondida até a primeira pintura, já com o fundo do tema, para não mostrar uma janela vazia ao abrir.
+    show: false,
+    backgroundColor: '#14111c',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       // A tela roda isolada, sem acesso ao Node nem ao banco.
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
     },
   });
-  
+
   janelaPrincipal = janela;
-  
+
+  // A tela nunca abre outras janelas nem navega para outro endereço.
+  // Recarregar a própria página (o "Sair" faz isso) continua funcionando.
+  janela.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  janela.webContents.on('will-navigate', (evento, url) => {
+    if (url !== janela.webContents.getURL()) evento.preventDefault();
+  });
+
+  janela.once('ready-to-show', () => janela.show());
+  // Se a tela falhar ao carregar, a janela aparece mesmo assim, em vez de ficar escondida.
+  janela.webContents.once('did-fail-load', () => janela.show());
+
   // Alt+F4 e o X da janela passam por aqui. Com alterações sem salvar, a janela não fecha:
   // a tela mostra o aviso do app e só depois pede o fechamento de verdade.
   let fechamentoConfirmado = false;
@@ -125,12 +140,17 @@ let ipcBancoRegistrado = false;
 function registrarIpcBanco() {
   if (ipcBancoRegistrado) return;
   ipcBancoRegistrado = true;
+
+  ipcMain.handle('pdf:paciente', (evento, pacienteId) =>
+    gerarPdfPaciente(pacienteId, BrowserWindow.fromWebContents(evento.sender))
+  );
   ipcMain.handle('pdf:analista', (evento, pacienteId) =>
     gerarPdfAnalista(pacienteId, BrowserWindow.fromWebContents(evento.sender))
   );
   ipcMain.handle('pdf:termo', (evento, pacienteId) =>
     gerarPdfTermo(pacienteId, BrowserWindow.fromWebContents(evento.sender))
   );
+
   ipcMain.handle('pacientes:criar', (_e, dados) => banco.criarPaciente(dados));
   ipcMain.handle('pacientes:atualizar', (_e, id, dados) => banco.atualizarPaciente(id, dados));
   ipcMain.handle('pacientes:listar', (_e, situacao, busca) => banco.listarPacientes(situacao, busca));
@@ -138,6 +158,7 @@ function registrarIpcBanco() {
   ipcMain.handle('pacientes:arquivar', (_e, id) => banco.arquivarPaciente(id));
   ipcMain.handle('pacientes:desarquivar', (_e, id) => banco.desarquivarPaciente(id));
   ipcMain.handle('pacientes:excluir', (_e, id) => banco.excluirPaciente(id));
+
   ipcMain.handle('sessoes:criar', (_e, pacienteId, dados) => banco.criarSessao(pacienteId, dados));
   ipcMain.handle('sessoes:listar', (_e, pacienteId, busca) => banco.listarSessoes(pacienteId, busca));
   ipcMain.handle('sessoes:atualizar', (_e, id, dados) => banco.atualizarSessao(id, dados));
@@ -146,6 +167,7 @@ function registrarIpcBanco() {
   ipcMain.handle('valores:adicionar', (_e, pacienteId, valor, aPartirDe) => banco.adicionarValor(pacienteId, valor, aPartirDe));
   ipcMain.handle('valores:listar', (_e, pacienteId) => banco.listarValores(pacienteId));
   ipcMain.handle('valores:excluir', (_e, id) => banco.excluirValor(id));
+
   ipcMain.handle('responsavel:obter', (_e, pacienteId) => banco.obterResponsavel(pacienteId));
   ipcMain.handle('responsavel:salvar', (_e, pacienteId, dados, termo) => banco.salvarResponsavel(pacienteId, dados, termo));
 
@@ -165,7 +187,6 @@ function registrarIpcBanco() {
     if (fs.statSync(arquivo).size > banco.LIMITE_DO_TERMO) throw new Error('O arquivo passa de 10 MB');
     return { nome: path.basename(arquivo), tipo, dados: fs.readFileSync(arquivo) };
   });
-
   ipcMain.handle('termo:abrir', async (_e, pacienteId) => {
     const termo = banco.obterTermo(pacienteId);
     if (!termo) throw new Error('Este paciente não tem termo anexado');
@@ -180,9 +201,6 @@ function registrarIpcBanco() {
 
   ipcMain.handle('profissional:obter', () => banco.obterProfissional());
   ipcMain.handle('profissional:salvar', (_e, dados) => banco.salvarProfissional(dados));
-  ipcMain.handle('pdf:paciente', (evento, pacienteId) =>
-    gerarPdfPaciente(pacienteId, BrowserWindow.fromWebContents(evento.sender))
-  );
 
   ipcMain.handle('backup:estado', () => ({ ...backup.estado(), aviso: avisoBackup }));
   ipcMain.handle('backup:escolherPasta', async (evento) => {

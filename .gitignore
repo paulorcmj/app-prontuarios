@@ -6,3 +6,7 @@ out
 *.sqlite
 *.backup
 chaves.json
+*.db-wal
+*.db-shm
+*.log
+.env

@@ -158,9 +158,15 @@ function migrar(conexao) {
 
 function iniciar(chave) {
   db = abrir(chave);
-  // sem isso o ON DELETE CASCADE não funciona
-  db.pragma('foreign_keys = ON');
-  migrar(db);
+  try {
+    // sem isso o ON DELETE CASCADE não funciona
+    db.pragma('foreign_keys = ON');
+    migrar(db);
+  } catch (e) {
+    // Sem fechar, o arquivo ficaria preso e uma nova tentativa falharia no Windows.
+    fechar();
+    throw e;
+  }
 }
 
 // hora local; toISOString() sairia em UTC
