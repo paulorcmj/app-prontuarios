@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "App local de prontuários para psicanalistas",
   "author": "Paulo Roberto Carvalho Machado Júnior",
-  "license": "ISC",
+  "license": "UNLICENSED",
   "main": "main.js",
   "type": "commonjs",
   "scripts": {
