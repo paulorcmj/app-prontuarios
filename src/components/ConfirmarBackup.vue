@@ -32,4 +32,19 @@ defineEmits(['cancelar', 'confirmar']);
   font-size: 13px;
   overflow-wrap: anywhere;
 }
+
+/* A confirmação fica maior que a janela de backup que aparece por trás dela,
+   para cobri-la por inteiro. Os botões ficam no pé da janela. */
+:deep(.janela) {
+  display: flex;
+  flex-direction: column;
+  width: 440px;
+  min-height: 340px;
+  padding: 28px;
+}
+
+:deep(.janela .acoes) {
+  margin-top: auto;
+  padding-top: 16px;
+}
 </style>
