@@ -256,6 +256,12 @@ async function excluir() {
 </template>
 
 <style scoped>
+/* Relato e anotações justificados. */
+.sessao-corpo .texto {
+  text-align: justify;
+  hyphens: auto;
+}
+
 /* Excluir e Editar ficam na ponta direita da sessão. */
 .sessao-corpo .acoes {
   justify-content: flex-end;

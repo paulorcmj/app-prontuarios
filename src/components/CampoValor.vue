@@ -71,7 +71,7 @@ async function remover() {
           <ul v-if="menuAberto" class="historico">
             <li v-for="v in historico" :key="v.id">
               <span>{{ dataBR(v.a_partir_de) }}: {{ reais(v.valor) }}</span>
-              <button type="button" class="perigo" @click="removendo = v">Remover</button>
+              <button type="button" class="perigo" :disabled="!editando" @click="removendo = v">Remover</button>
             </li>
             <li v-if="!historico.length" class="vazio">Nenhum valor registrado</li>
           </ul>
@@ -95,3 +95,14 @@ async function remover() {
     />
   </div>
 </template>
+
+<style scoped>
+/* Fora da edição, o histórico só pode ser consultado. */
+.historico button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.historico button:disabled:hover {
+  background: transparent;
+}
+</style>

@@ -10,3 +10,6 @@ chaves.json
 *.db-shm
 *.log
 .env
+*.exe
+*.blockmap
+*.antes-da-v*

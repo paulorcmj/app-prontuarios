@@ -153,9 +153,9 @@ function gerarTermo() {
   <div class="bloco">
     <!-- "sem-quebra": o título e o botão do cabeçalho ficam sempre na mesma linha. -->
     <Colapsavel v-model:aberto="aberto" class="sem-quebra" titulo="Dados do responsável">
-      <template v-if="!novo && !editando" #acoes>
+      <template v-if="!novo" #acoes>
         <div class="acoes">
-          <button type="button" class="principal" @click="gerarTermo">Gerar termo</button>
+          <button type="button" class="principal" :disabled="editando" @click="gerarTermo">Gerar termo</button>
         </div>
       </template>
 
@@ -194,8 +194,8 @@ function gerarTermo() {
 
             <div class="termo-botoes">
               <template v-if="editando">
-                <button v-if="termoAtual" type="button" class="perigo" @click="remover">Remover</button>
                 <button type="button" @click="anexar">{{ termoAtual ? 'Substituir' : 'Anexar termo assinado' }}</button>
+                <button v-if="termoAtual" type="button" @click="remover">Remover</button>
               </template>
               <button v-else-if="termoAtual" type="button" @click="abrir">Abrir</button>
             </div>
@@ -286,7 +286,17 @@ function gerarTermo() {
 
 /* A caixa do termo tem o mesmo fundo que o botão ganha ao passar o mouse; aqui o brilho é um tom acima.
    O "Remover" mantém o brilho vermelho dele. */
-.termo-botoes button:not(.perigo):hover {
+.termo-botoes button:hover {
   background: var(--borda);
+}
+
+/* Durante a edição o termo não pode ser gerado: ele usa o que está salvo, sem as alterações da tela. */
+.acoes button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.acoes button.principal:disabled:hover {
+  background: var(--roxo);
+  border-color: var(--roxo);
 }
 </style>

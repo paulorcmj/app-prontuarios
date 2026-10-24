@@ -336,9 +336,9 @@ function excluir() {
         <button v-if="situacao === 'ativo'" type="button" @click="comAviso(arquivar, pendente)">Arquivar</button>
         <button v-else type="button" @click="comAviso(desarquivar, pendente)">Desarquivar</button>
       </div>
-      <div v-if="!novo && !editando" class="acoes topo-pdf">
+      <div v-if="!novo" class="acoes topo-pdf">
         <div class="menu-pdf">
-          <button type="button" class="principal" aria-haspopup="menu" :aria-expanded="menuPdfAberto" @click="menuPdfAberto = !menuPdfAberto">Gerar PDF</button>
+          <button type="button" class="principal" aria-haspopup="menu" :aria-expanded="menuPdfAberto" :disabled="editando" @click="menuPdfAberto = !menuPdfAberto">Gerar PDF</button>
           <div v-if="menuPdfAberto" class="pdf-menu">
             <button type="button" @click="gerarPdf('paciente')">PDF do paciente</button>
             <button type="button" @click="gerarPdf('analista')">PDF do analista</button>
@@ -474,5 +474,15 @@ function excluir() {
 .pdf-menu {
   left: auto;
   right: 0;
+}
+
+/* Durante a edição o PDF não pode ser gerado: ele usa o que está salvo, sem as alterações da tela. */
+.topo-pdf button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.topo-pdf button.principal:disabled:hover {
+  background: var(--roxo);
+  border-color: var(--roxo);
 }
 </style>
