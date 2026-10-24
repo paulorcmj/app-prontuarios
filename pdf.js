@@ -258,7 +258,15 @@ async function salvarPdf(janelaPai, nomeArquivo, html, titulo = 'Salvar prontuá
         '<div style="width:100%; font-size:9px; text-align:center; color:#666;">' +
         '<span class="pageNumber"></span> / <span class="totalPages"></span></div>',
     });
-    fs.writeFileSync(escolha.filePath, pdf);
+    try {
+      fs.writeFileSync(escolha.filePath, pdf);
+    } catch (e) {
+      // Arquivo de mesmo nome aberto no leitor, ou pasta sem permissão de escrita.
+      if (['EBUSY', 'EPERM', 'EACCES'].includes(e.code)) {
+        throw new Error('Não foi possível salvar o PDF. Se um arquivo com esse nome estiver aberto, feche-o e tente de novo');
+      }
+      throw e;
+    }
   } finally {
     janela.destroy();
     apagarArquivo(arquivoTemporario);

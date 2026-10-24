@@ -4,6 +4,9 @@
   "description": "App local de prontuários para psicanalistas",
   "author": "Paulo Roberto Carvalho Machado Júnior",
   "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22.12"
+  },
   "main": "main.js",
   "type": "commonjs",
   "scripts": {
@@ -46,7 +49,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "6.0.10",
-    "electron": "44.9.0",
+    "electron": "44.9.3",
     "electron-builder": "26.15.3",
     "vite": "8.3.4",
     "vue": "3.5.44"

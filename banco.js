@@ -1,6 +1,7 @@
 // Todo o acesso ao banco passa por este arquivo.
 
 const path = require('path');
+const fs = require('fs');
 const { app } = require('electron');
 const Database = require('better-sqlite3-multiple-ciphers');
 
@@ -144,6 +145,14 @@ function abrir(chave) {
   return conexao;
 }
 
+// Antes de aplicar migrações pendentes, guarda uma cópia do banco (já criptografado) na pasta de dados.
+// Banco novo (versão 0) não tem o que proteger. Se a cópia falhar, a migração não roda.
+function copiarAntesDeMigrar(conexao) {
+  const atual = conexao.pragma('user_version', { simple: true });
+  if (atual === 0 || atual >= MIGRACOES.length) return;
+  fs.copyFileSync(caminhoDoBanco(), `${caminhoDoBanco()}.antes-da-v${MIGRACOES.length}`);
+}
+
 // Roda só as migrações que faltam, cada uma numa transação,
 // e guarda a versão do banco em user_version.
 function migrar(conexao) {
@@ -161,6 +170,9 @@ function iniciar(chave) {
   try {
     // sem isso o ON DELETE CASCADE não funciona
     db.pragma('foreign_keys = ON');
+    // usada nas buscas (listarPacientes e listarSessoes)
+    db.function('sem_acento', { deterministic: true }, semAcento);
+    copiarAntesDeMigrar(db);
     migrar(db);
   } catch (e) {
     // Sem fechar, o arquivo ficaria preso e uma nova tentativa falharia no Windows.
@@ -180,6 +192,12 @@ function agora() {
 // Quem usa o padrão precisa declarar ESCAPE '\'.
 function padraoLike(termo) {
   return '%' + termo.replace(/[\\%_]/g, '\\$&') + '%';
+}
+
+// Minúsculas e sem acento, para a busca achar "joao" em "João". O LIKE do SQLite só ignora
+// maiúsculas em ASCII, então a comparação é feita com os dois lados passados por aqui.
+function semAcento(texto) {
+  return String(texto ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
 // Marca o paciente como modificado agora. Sessões, valores e responsável também contam,
@@ -235,10 +253,10 @@ function listarPacientes(situacao, busca) {
       `SELECT p.id, p.nome_completo, p.situacao, p.modificado_em,
               (SELECT MAX(data_hora) FROM sessoes WHERE paciente_id = p.id) AS ultima_sessao
        FROM pacientes p
-       WHERE p.situacao = ? AND p.nome_completo LIKE ? ESCAPE '\\'
+       WHERE p.situacao = ? AND sem_acento(p.nome_completo) LIKE ? ESCAPE '\\'
        ORDER BY p.nome_completo COLLATE NOCASE`
     )
-    .all(situacao, padraoLike(busca || ''));
+    .all(situacao, padraoLike(semAcento(busca)));
 }
 
 function obterPaciente(id) {
@@ -294,12 +312,14 @@ function listarSessoes(pacienteId, busca) {
       .prepare('SELECT * FROM sessoes WHERE paciente_id = ? ORDER BY data_hora, id')
       .all(pacienteId);
   }
-  const padrao = padraoLike(termo);
+  const padrao = padraoLike(semAcento(termo));
   return db
     .prepare(
       `SELECT * FROM sessoes
        WHERE paciente_id = ?
-         AND (titulo LIKE ? ESCAPE '\\' OR relato LIKE ? ESCAPE '\\' OR anotacoes LIKE ? ESCAPE '\\')
+         AND (sem_acento(titulo) LIKE ? ESCAPE '\\'
+              OR sem_acento(relato) LIKE ? ESCAPE '\\'
+              OR sem_acento(anotacoes) LIKE ? ESCAPE '\\')
        ORDER BY data_hora, id`
     )
     .all(pacienteId, padrao, padrao, padrao);
