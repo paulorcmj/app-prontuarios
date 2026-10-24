@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const { randomUUID } = require('crypto');
-const { app, BrowserWindow, dialog } = require('electron');
+const { app, BrowserWindow, dialog, shell } = require('electron');
 const banco = require('./banco');
 // O HTML do PDF vai para um arquivo temporário e a janela de impressão o abre por ele. Passar o HTML
 // num endereço "data:" tem limite de uns 2 MB, que um prontuário muito longo pode ultrapassar.
@@ -233,6 +233,7 @@ function htmlAnalista(paciente, sessoes, valores, responsavel, profissional) {
 
 // Pergunta onde salvar e imprime o HTML em PDF.
 // Só o nome do arquivo é sugerido; a pasta inicial fica por conta do Windows.
+// Depois de salvar, abre a pasta com o arquivo selecionado.
 // Devolve o caminho do arquivo, ou null se o usuário cancelar.
 async function salvarPdf(janelaPai, nomeArquivo, html, titulo = 'Salvar prontuário em PDF') {
   const escolha = await dialog.showSaveDialog(janelaPai, {
@@ -271,6 +272,7 @@ async function salvarPdf(janelaPai, nomeArquivo, html, titulo = 'Salvar prontuá
     janela.destroy();
     apagarArquivo(arquivoTemporario);
   }
+  shell.showItemInFolder(escolha.filePath);
   return escolha.filePath;
 }
 
