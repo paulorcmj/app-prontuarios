@@ -74,6 +74,12 @@ Para gerar o instalador:
 npm run dist
 ```
 
+O instalador sai na pasta `out`. Se der erro de permissão (EPERM), gere em outra pasta, fora de Documents:
+
+```powershell
+npm run dist -- --config.directories.output=C:\build-prontuarios
+```
+
 ## Como foi feito
 
 Electron 44 com Vue 3 e Vite na tela. O banco é SQLite criptografado, com o `better-sqlite3-multiple-ciphers`. O Electron cuida do banco, dos backups e dos PDFs, e a tela conversa com ele apenas através do preload.
